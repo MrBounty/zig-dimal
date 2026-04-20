@@ -27,6 +27,10 @@ pub fn build(b: *std.Build) void {
 
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
+        .test_runner = .{
+            .path = .{ .cwd_relative = "test_runner.zig" },
+            .mode = .simple,
+        },
     });
 
     // A run step that will run the second test executable.

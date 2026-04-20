@@ -45,16 +45,34 @@ pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
             return res;
         }
 
-        pub fn add(self: Self, rhs: anytype) Self {
+        pub fn add(self: Self, rhs: anytype) Quantity(
+            T,
+            dims,
+            scales.min(@TypeOf(rhs).scales),
+        ) {
             if (comptime !dims.eql(@TypeOf(rhs).dims))
                 @compileError("Dimension mismatch in add");
-            return .{ .value = self.value + rhs.to(Self).value };
+
+            const TargetType = Quantity(T, dims, scales.min(@TypeOf(rhs).scales));
+            const lhs_converted = self.to(TargetType);
+            const rhs_converted = rhs.to(TargetType);
+
+            return .{ .value = lhs_converted.value + rhs_converted.value };
         }
 
-        pub fn sub(self: Self, rhs: anytype) Self {
+        pub fn sub(self: Self, rhs: anytype) Quantity(
+            T,
+            dims,
+            scales.min(@TypeOf(rhs).scales),
+        ) {
             if (comptime !dims.eql(@TypeOf(rhs).dims))
                 @compileError("Dimension mismatch in sub");
-            return .{ .value = self.value - rhs.to(Self).value };
+
+            const TargetType = Quantity(T, dims, scales.min(@TypeOf(rhs).scales));
+            const lhs_converted = self.to(TargetType);
+            const rhs_converted = rhs.to(TargetType);
+
+            return .{ .value = lhs_converted.value - rhs_converted.value };
         }
 
         pub fn mulBy(self: Self, rhs: anytype) Quantity(
@@ -155,21 +173,30 @@ pub fn QuantityVec3(Q: type) type {
             return .{ .x = v, .y = v, .z = v };
         }
 
-        pub fn add(self: Self, rhs: anytype) Self {
+        pub fn add(self: Self, rhs: anytype) QuantityVec3(Quantity(T, d, s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
+            // We leverage the logic in the scalar Quantity.add
+            const qx = (Q{ .value = self.x }).add(Tr.QuantityType{ .value = rhs.x });
+            const qy = (Q{ .value = self.y }).add(Tr.QuantityType{ .value = rhs.y });
+            const qz = (Q{ .value = self.z }).add(Tr.QuantityType{ .value = rhs.z });
+
             return .{
-                .x = (Q{ .value = self.x }).add(Tr.QuantityType{ .value = rhs.x }).value,
-                .y = (Q{ .value = self.y }).add(Tr.QuantityType{ .value = rhs.y }).value,
-                .z = (Q{ .value = self.z }).add(Tr.QuantityType{ .value = rhs.z }).value,
+                .x = qx.value,
+                .y = qy.value,
+                .z = qz.value,
             };
         }
 
-        pub fn sub(self: Self, rhs: anytype) Self {
+        pub fn sub(self: Self, rhs: anytype) QuantityVec3(Quantity(T, d, s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
+            const qx = (Q{ .value = self.x }).sub(Tr.QuantityType{ .value = rhs.x });
+            const qy = (Q{ .value = self.y }).sub(Tr.QuantityType{ .value = rhs.y });
+            const qz = (Q{ .value = self.z }).sub(Tr.QuantityType{ .value = rhs.z });
+
             return .{
-                .x = (Q{ .value = self.x }).sub(Tr.QuantityType{ .value = rhs.x }).value,
-                .y = (Q{ .value = self.y }).sub(Tr.QuantityType{ .value = rhs.y }).value,
-                .z = (Q{ .value = self.z }).sub(Tr.QuantityType{ .value = rhs.z }).value,
+                .x = qx.value,
+                .y = qy.value,
+                .z = qz.value,
             };
         }
 
@@ -318,15 +345,15 @@ test "Add" {
     try std.testing.expectEqual(1, @TypeOf(added2).dims.get(.L));
     std.debug.print("KiloMeter {f} + {f} = {f} OK\n", .{ distance, distance3, added2 });
 
-    const added3 = distance3.add(distance);
+    const added3 = distance3.add(distance).to(KiloMeter);
     try std.testing.expectEqual(2, added3.value);
     try std.testing.expectEqual(1, @TypeOf(added3).dims.get(.L));
     std.debug.print("KiloMeter {f} + {f} = {f} OK\n", .{ distance3, distance, added3 });
 
     const KiloMeter_f = Quantity(f64, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
     const distance4 = KiloMeter_f{ .value = 2 };
-    const added4 = distance4.add(distance);
-    try std.testing.expectEqual(2.01, added4.value);
+    const added4 = distance4.add(distance).to(KiloMeter_f);
+    try std.testing.expectApproxEqAbs(2.01, added4.value, 0.000001);
     try std.testing.expectEqual(1, @TypeOf(added4).dims.get(.L));
     std.debug.print("KiloMeter_f {f} + {f} = {f} OK\n", .{ distance4, distance, added4 });
 }
@@ -349,7 +376,7 @@ test "Sub" {
     const km_f = KiloMeter_f{ .value = 2.5 };
     const m_f = Meter{ .value = 500 };
     const diff3 = km_f.sub(m_f);
-    try std.testing.expectApproxEqAbs(@as(f32, 2.0), diff3.value, 1e-4);
+    try std.testing.expectApproxEqAbs(2000, diff3.value, 1e-4);
     std.debug.print("Sub float cross-scale: {f} - {f} = {f} OK\n", .{ km_f, m_f, diff3 });
 }
 

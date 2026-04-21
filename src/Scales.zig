@@ -3,7 +3,7 @@ const hlp = @import("helper.zig");
 const Dimensions = @import("Dimensions.zig");
 const Dimension = @import("Dimensions.zig").Dimension;
 
-pub const UnitScale = enum(i32) {
+pub const UnitScale = enum(isize) {
     P = 15,
     T = 12,
     G = 9,
@@ -28,7 +28,7 @@ pub const UnitScale = enum(i32) {
     // Undefined
     _,
 
-    pub fn str(self: @This()) []const u8 {
+    pub inline fn str(self: @This()) []const u8 {
         var buf: [16]u8 = undefined;
         return switch (self) {
             inline .none => "",
@@ -38,7 +38,7 @@ pub const UnitScale = enum(i32) {
     }
 
     /// Helper to get the actual scaling factor
-    pub fn getFactor(self: @This()) f64 {
+    pub inline fn getFactor(self: @This()) comptime_float {
         return switch (self) {
             inline .P, .T, .G, .M, .k, .h, .da, .none, .d, .c, .m, .u, .n, .p, .f => std.math.pow(f64, 10.0, @floatFromInt(@intFromEnum(self))),
             inline else => @floatFromInt(@intFromEnum(self)),
@@ -46,10 +46,10 @@ pub const UnitScale = enum(i32) {
     }
 
     /// Helper to get the actual scaling factor in i32
-    pub fn getFactorInt(self: @This()) i32 {
+    pub inline fn getFactorInt(self: @This()) comptime_int {
         return switch (self) {
-            inline .P, .T, .G, .M, .k, .h, .da, .none, .d, .c, .m, .u, .n, .p, .f => std.math.powi(i32, 10.0, @intFromEnum(self)) catch 0,
-            inline else => @intFromEnum(self),
+            inline .P, .T, .G, .M, .k, .h, .da, .none, .d, .c, .m, .u, .n, .p, .f => comptime std.math.powi(i32, 10.0, @intFromEnum(self)) catch 0,
+            inline else => comptime @intFromEnum(self),
         };
     }
 };
@@ -89,7 +89,7 @@ pub fn min(comptime s1: Scales, comptime s2: Scales) Scales {
     return out;
 }
 
-pub fn getFactor(comptime s: Scales, comptime d: Dimensions) f64 {
+pub inline fn getFactor(comptime s: Scales, comptime d: Dimensions) comptime_float {
     comptime var factor: f64 = 1.0;
     inline for (std.enums.values(Dimension)) |dim| {
         const power = d.get(dim);

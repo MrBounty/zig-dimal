@@ -1,7 +1,7 @@
 .{
-    .name = .@"zig-dimal",
+    .name = .dimal,
     .version = "0.1.0",
-    .fingerprint = 0x934b00cf88f69b22,
+    .fingerprint = 0x9453b1ff1e52d858,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{},
     .paths = .{

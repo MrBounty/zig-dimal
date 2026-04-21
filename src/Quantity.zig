@@ -8,6 +8,7 @@ const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
 pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
+    @setEvalBranchQuota(100_000);
     return struct {
         value: T,
 
@@ -18,7 +19,7 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
         pub const dims: Dimensions = d;
         pub const scales = s;
 
-        pub fn add(self: Self, rhs: anytype) Quantity(
+        pub inline fn add(self: Self, rhs: anytype) Quantity(
             T,
             dims,
             scales.min(@TypeOf(rhs).scales),
@@ -33,7 +34,7 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             return .{ .value = lhs_converted.value + rhs_converted.value };
         }
 
-        pub fn sub(self: Self, rhs: anytype) Quantity(
+        pub inline fn sub(self: Self, rhs: anytype) Quantity(
             T,
             dims,
             scales.min(@TypeOf(rhs).scales),
@@ -48,7 +49,7 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             return .{ .value = lhs_converted.value - rhs_converted.value };
         }
 
-        pub fn mulBy(self: Self, rhs: anytype) Quantity(
+        pub inline fn mulBy(self: Self, rhs: anytype) Quantity(
             T,
             dims.add(@TypeOf(rhs).dims),
             scales.min(@TypeOf(rhs).scales),
@@ -58,7 +59,7 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             return .{ .value = self_.value * rhs_.value };
         }
 
-        pub fn divBy(self: Self, rhs: anytype) Quantity(T, dims.sub(@TypeOf(rhs).dims), scales.min(@TypeOf(rhs).scales)) {
+        pub inline fn divBy(self: Self, rhs: anytype) Quantity(T, dims.sub(@TypeOf(rhs).dims), scales.min(@TypeOf(rhs).scales)) {
             const self_ = self.to(Quantity(T, dims, scales.min(@TypeOf(rhs).scales)));
             const rhs_ = rhs.to(Quantity(T, @TypeOf(rhs).dims, scales.min(@TypeOf(rhs).scales)));
 
@@ -69,11 +70,11 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             }
         }
 
-        pub fn scale(self: Self, sc: T) Self {
+        pub inline fn scale(self: Self, sc: T) Self {
             return .{ .value = self.value * sc };
         }
 
-        pub fn to(self: Self, comptime Dest: type) Dest {
+        pub inline fn to(self: Self, comptime Dest: type) Dest {
             if (comptime !dims.eql(Dest.dims))
                 @compileError("Dimension mismatch in to: " ++ dims.str() ++ " vs " ++ Dest.dims.str());
             if (comptime @TypeOf(self) == Dest)

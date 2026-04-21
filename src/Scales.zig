@@ -82,7 +82,6 @@ pub fn set(comptime self: *Scales, comptime key: Dimension, comptime val: UnitSc
 }
 
 pub fn min(comptime s1: Scales, comptime s2: Scales) Scales {
-    @setEvalBranchQuota(10_000);
     comptime var out = Scales.initFill(.none);
     inline for (std.enums.values(Dimension)) |dim|
         out.set(dim, if (s1.get(dim).getFactorInt() > s2.get(dim).getFactorInt()) s2.get(dim) else s1.get(dim));

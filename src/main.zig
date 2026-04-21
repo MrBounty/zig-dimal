@@ -51,7 +51,7 @@ pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
             scales.min(@TypeOf(rhs).scales),
         ) {
             if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in add");
+                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
 
             const TargetType = Quantity(T, dims, scales.min(@TypeOf(rhs).scales));
             const lhs_converted = self.to(TargetType);
@@ -66,7 +66,7 @@ pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
             scales.min(@TypeOf(rhs).scales),
         ) {
             if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in sub");
+                @compileError("Dimension mismatch in sub: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
 
             const TargetType = Quantity(T, dims, scales.min(@TypeOf(rhs).scales));
             const lhs_converted = self.to(TargetType);
@@ -101,23 +101,45 @@ pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
 
         pub fn to(self: Self, comptime Dest: type) Dest {
             if (comptime !dims.eql(Dest.dims))
-                @compileError("Dimension mismatch: " ++ dims.str() ++ " vs " ++ Dest.dims.str());
+                @compileError("Dimension mismatch in to: " ++ dims.str() ++ " vs " ++ Dest.dims.str());
             if (comptime @TypeOf(self) == Dest)
                 return self;
 
-            const source_factor = scales.getFactor(dims);
-            const dest_factor = Dest.scales.getFactor(Dest.dims);
-            const ratio = source_factor / dest_factor;
-            const result_f = toF64(self.value) * ratio;
-
             const DestT = Dest.ValueType;
-            return .{ .value = switch (@typeInfo(DestT)) {
-                .int => @intFromFloat(@round(result_f)),
-                .float => @floatCast(result_f),
-                else => unreachable,
-            } };
-        }
+            const ratio = comptime (scales.getFactor(dims) / Dest.scales.getFactor(Dest.dims));
 
+            // Fast-path: Native pure-integer exact conversions
+            if (comptime @typeInfo(T) == .int and @typeInfo(DestT) == .int) {
+                if (ratio >= 1.0 and @round(ratio) == ratio) {
+                    const mult: DestT = @intFromFloat(ratio);
+                    return .{ .value = @as(DestT, @intCast(self.value)) * mult };
+                } else if (ratio < 1.0 and @round(1.0 / ratio) == 1.0 / ratio) {
+                    const div: DestT = @intFromFloat(1.0 / ratio);
+                    const val = @as(DestT, @intCast(self.value));
+                    const half = div / 2;
+                    // Native round-to-nearest
+                    const rounded = if (val >= 0) @divTrunc(val + half, div) else @divTrunc(val - half, div);
+                    return .{ .value = rounded };
+                }
+            }
+
+            // Fallback preserving native Float types (e.g., f128 shouldn't downcast to f64)
+            if (comptime @typeInfo(DestT) == .float) {
+                const val_f = switch (@typeInfo(T)) {
+                    .int => @as(DestT, @floatFromInt(self.value)),
+                    .float => @as(DestT, @floatCast(self.value)),
+                    else => unreachable,
+                };
+                return .{ .value = val_f * @as(DestT, @floatCast(ratio)) };
+            } else {
+                const val_f = switch (@typeInfo(T)) {
+                    .int => @as(f64, @floatFromInt(self.value)),
+                    .float => @as(f64, @floatCast(self.value)),
+                    else => unreachable,
+                };
+                return .{ .value = @intFromFloat(@round(val_f * ratio)) };
+            }
+        }
         pub fn vec3(self: Self) Vec3 {
             return .{ .x = self.value, .y = self.value, .z = self.value };
         }
@@ -415,14 +437,17 @@ test "MulBy with scale" {
 
 test "MulBy with type change" {
     const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const Second = Quantity(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
-    const KmSec = Quantity(f32, Dimensions.init(.{ .L = 1, .T = 1 }), Scales.init(.{ .L = .k }));
+    const Second = Quantity(f64, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const KmSec = Quantity(i64, Dimensions.init(.{ .L = 1, .T = 1 }), Scales.init(.{ .L = .k }));
+    const KmSec_f = Quantity(f32, Dimensions.init(.{ .L = 1, .T = 1 }), Scales.init(.{ .L = .k }));
 
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
 
     const area_time = d.mulBy(t).to(KmSec);
+    const area_time_f = d.mulBy(t).to(KmSec_f);
     try std.testing.expectEqual(12, area_time.value);
+    try std.testing.expectApproxEqAbs(12, area_time_f.value, 0.0001);
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.L));
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.T));
     std.debug.print("MulBy: {f} * {f} = {f} OK\n", .{ d, t, area_time });

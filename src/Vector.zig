@@ -204,8 +204,12 @@ test "Format VectorX" {
     const accel = MeterPerSecondSq.Vec3.initDefault(9.81);
     const momentum = KgMeterPerSecond.Vec3{ .data = .{ 43, 0, 11 } };
 
-    std.debug.print("Acceleration: {d}\n", .{accel});
-    std.debug.print("Momentum: {d:.2}\n", .{momentum});
+    var buf: [64]u8 = undefined;
+    var res = try std.fmt.bufPrint(&buf, "{d}", .{accel});
+    try std.testing.expectEqualStrings("(9.81, 9.81, 9.81)m.ns⁻²", res);
+
+    res = try std.fmt.bufPrint(&buf, "{d:.2}", .{momentum});
+    try std.testing.expectEqualStrings("(43.00, 0.00, 11.00)m.kg.s⁻¹", res);
 }
 
 test "VecX Init and Basic Arithmetic" {
@@ -325,125 +329,4 @@ test "VecX Length" {
     const v_float = MeterFloat.Vec3{ .data = .{ 3.0, 4.0, 0.0 } };
     try std.testing.expectApproxEqAbs(@as(f32, 25.0), v_float.lengthSqr(), 1e-4);
     try std.testing.expectApproxEqAbs(@as(f32, 5.0), v_float.length(), 1e-4);
-}
-
-test "Benchmark Vector ops" {
-    const Io = std.Io;
-    const ITERS: usize = 10_000;
-    const SAMPLES: usize = 10;
-    var gsink: f64 = 0;
-
-    // In Zig 0.14+, we use the testing IO for clock access in tests
-    const io = std.testing.io;
-
-    const getTime = struct {
-        fn f(i: Io) Io.Timestamp {
-            return Io.Clock.awake.now(i);
-        }
-    }.f;
-
-    const getVal = struct {
-        fn f(comptime TT: type, i: usize, comptime mask: u7) TT {
-            const v: u8 = @as(u8, @truncate(i & @as(usize, mask))) + 1;
-            return if (comptime @typeInfo(TT) == .float) @floatFromInt(v) else @intCast(v);
-        }
-    }.f;
-
-    const fold = struct {
-        fn f(comptime TT: type, s: *f64, v: TT) void {
-            s.* += if (comptime @typeInfo(TT) == .float)
-                @as(f64, @floatCast(v))
-            else
-                @as(f64, @floatFromInt(v));
-        }
-    }.f;
-
-    const computeStats = struct {
-        fn f(samples: []f64, iters: usize) f64 {
-            std.mem.sort(f64, samples, {}, std.sort.asc(f64));
-            const mid = samples.len / 2;
-            const median_ns = if (samples.len % 2 == 0)
-                (samples[mid - 1] + samples[mid]) / 2.0
-            else
-                samples[mid];
-            return median_ns / @as(f64, @floatFromInt(iters));
-        }
-    }.f;
-
-    std.debug.print(
-        \\
-        \\ Vector<N, T> benchmark — {d} iterations, {d} samples/cell
-        \\ (Results in ns/op)
-        \\
-        \\┌─────────────┬──────┬─────────┬─────────┬─────────┐
-        \\│ Operation   │ Type │   Len=3 │   Len=4 │  Len=16 │
-        \\├─────────────┼──────┼─────────┼─────────┼─────────┤
-        \\
-    , .{ ITERS, SAMPLES });
-
-    const Types = .{ i32, i64, i128, f32, f64 };
-    const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
-    const Lengths = .{ 3, 4, 16 };
-    const Ops = .{ "add", "scale", "mulByScalar", "length" };
-
-    inline for (Ops, 0..) |op_name, o_idx| {
-        inline for (Types, TNames) |T, tname| {
-            std.debug.print("│ {s:<11} │ {s:<4} │", .{ op_name, tname });
-
-            inline for (Lengths) |len| {
-                const Q_base = Scalar(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-                const Q_time = Scalar(T, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
-                const V = Vector(len, Q_base);
-
-                var samples: [SAMPLES]f64 = undefined;
-
-                for (0..SAMPLES) |s_idx| {
-                    var sink: T = 0;
-
-                    const t_start = getTime(io);
-                    for (0..ITERS) |i| {
-                        const v1 = V.initDefault(getVal(T, i, 63));
-
-                        if (comptime std.mem.eql(u8, op_name, "add")) {
-                            const v2 = V.initDefault(getVal(T, i +% 7, 63));
-                            const res = v1.add(v2);
-                            for (res.data) |val| {
-                                if (comptime @typeInfo(T) == .float) sink += val else sink ^= val;
-                            }
-                        } else if (comptime std.mem.eql(u8, op_name, "scale")) {
-                            const sc = getVal(T, i +% 2, 63);
-                            const res = v1.scale(sc);
-                            for (res.data) |val| {
-                                if (comptime @typeInfo(T) == .float) sink += val else sink ^= val;
-                            }
-                        } else if (comptime std.mem.eql(u8, op_name, "mulByScalar")) {
-                            const s_val = Q_time{ .value = getVal(T, i +% 2, 63) };
-                            const res = v1.mulByScalar(s_val);
-                            for (res.data) |val| {
-                                if (comptime @typeInfo(T) == .float) sink += val else sink ^= val;
-                            }
-                        } else if (comptime std.mem.eql(u8, op_name, "length")) {
-                            const r = v1.length();
-                            if (comptime @typeInfo(T) == .float) sink += r else sink ^= r;
-                        }
-                    }
-                    const t_end = getTime(io);
-
-                    samples[s_idx] = @as(f64, @floatFromInt(t_start.durationTo(t_end).toNanoseconds()));
-                    fold(T, &gsink, sink);
-                }
-
-                const median_ns_per_op = computeStats(&samples, ITERS);
-                std.debug.print(" {d:>7.1} │", .{median_ns_per_op});
-            }
-            std.debug.print("\n", .{});
-        }
-
-        if (o_idx < Ops.len - 1) {
-            std.debug.print("├─────────────┼──────┼─────────┼─────────┼─────────┤\n", .{});
-        }
-    }
-    std.debug.print("└─────────────┴──────┴─────────┴─────────┴─────────┘\n", .{});
-    std.debug.print("\nAnti-optimisation sink: {d:.4}\n", .{gsink});
-    try std.testing.expect(gsink != 0);
 }

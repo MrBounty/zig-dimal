@@ -100,6 +100,7 @@ A `Scalar` type is parameterized by three things: the numeric type (`f64`, `i128
 
 ```zig
 const Meter     = Scalar(f64, .init(.{ .L = 1 }),            .init(.{}));
+const NanoMeter = Scalar(i64, .init(.{ .L = 1 }),            .init(.{ .L = .n }));
 const KiloMeter = Scalar(f64, .init(.{ .L = 1 }),            .init(.{ .L = .k }));
 const Second    = Scalar(f64, .init(.{ .T = 1 }),            .init(.{}));
 const Velocity  = Scalar(f64, .init(.{ .L = 1, .T = -1 }),  .init(.{}));

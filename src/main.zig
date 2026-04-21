@@ -85,14 +85,15 @@ pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
             return .{ .value = self_.value * rhs_.value };
         }
 
-        pub fn divBy(self: Self, rhs: anytype) Quantity(
-            T,
-            dims.sub(@TypeOf(rhs).dims),
-            scales.min(@TypeOf(rhs).scales),
-        ) {
+        pub fn divBy(self: Self, rhs: anytype) Quantity(T, dims.sub(@TypeOf(rhs).dims), scales.min(@TypeOf(rhs).scales)) {
             const self_ = self.to(Quantity(T, dims, scales.min(@TypeOf(rhs).scales)));
             const rhs_ = rhs.to(Quantity(T, @TypeOf(rhs).dims, scales.min(@TypeOf(rhs).scales)));
-            return .{ .value = fromF64((toF64(self_.value) / toF64(rhs_.value))) };
+
+            if (comptime @typeInfo(T) == .int) {
+                return .{ .value = @divTrunc(self_.value, rhs_.value) };
+            } else {
+                return .{ .value = self_.value / rhs_.value };
+            }
         }
 
         pub fn scale(self: Self, sc: T) Self {

@@ -26,74 +26,74 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         pub fn initDefault(v: T) Self {
             var data: [len]T = undefined;
-            for (&data) |*item| item.* = v;
+            inline for (&data) |*item| item.* = v;
             return .{ .data = data };
         }
 
-        pub fn add(self: Self, rhs: anytype) Vector(len, Scalar(T, d, s.min(@TypeOf(rhs).scales))) {
+        pub inline fn add(self: Self, rhs: anytype) Vector(len, Scalar(T, d, s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
             var res: Vector(len, Scalar(T, d, s.min(Tr.scales))) = undefined;
-            for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).add(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
         }
 
-        pub fn sub(self: Self, rhs: anytype) Vector(len, Scalar(T, d, s.min(@TypeOf(rhs).scales))) {
+        pub inline fn sub(self: Self, rhs: anytype) Vector(len, Scalar(T, d, s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
             var res: Vector(len, Scalar(T, d, s.min(Tr.scales))) = undefined;
-            for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).sub(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
         }
 
-        pub fn divBy(
+        pub inline fn divBy(
             self: Self,
             rhs: anytype,
         ) Vector(len, Scalar(T, d.sub(@TypeOf(rhs).dims), s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
             var res: Vector(len, Scalar(T, d.sub(Tr.dims), s.min(Tr.scales))) = undefined;
-            for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).divBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
         }
 
-        pub fn mulBy(
+        pub inline fn mulBy(
             self: Self,
             rhs: anytype,
         ) Vector(len, Scalar(T, d.add(@TypeOf(rhs).dims), s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
             var res: Vector(len, Scalar(T, d.add(Tr.dims), s.min(Tr.scales))) = undefined;
-            for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).mulBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
         }
 
-        pub fn divByScalar(
+        pub inline fn divByScalar(
             self: Self,
             scalar: anytype,
         ) Vector(len, Scalar(T, d.sub(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) {
             var res: Vector(len, Scalar(T, d.sub(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) = undefined;
-            for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.divBy(scalar).value;
             }
             return res;
         }
 
-        pub fn mulByScalar(
+        pub inline fn mulByScalar(
             self: Self,
             scalar: anytype,
         ) Vector(len, Scalar(T, d.add(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) {
             var res: Vector(len, Scalar(T, d.add(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) = undefined;
-            for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.mulBy(scalar).value;
             }
@@ -102,37 +102,29 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         pub fn negate(self: Self) Self {
             var res: Self = undefined;
-            for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i| {
                 res.data[i] = -v;
             }
             return res;
         }
 
-        pub fn scale(self: Self, rhs: T) Self {
-            var res: Self = undefined;
-            for (self.data, 0..) |v, i| {
-                res.data[i] = (Q{ .value = v }).scale(rhs).value;
-            }
-            return res;
-        }
-
-        pub fn to(self: Self, comptime DestQ: type) Vector(len, DestQ) {
+        pub inline fn to(self: Self, comptime DestQ: type) Vector(len, DestQ) {
             var res: Vector(len, DestQ) = undefined;
-            for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i| {
                 res.data[i] = (Q{ .value = v }).to(DestQ).value;
             }
             return res;
         }
 
-        pub fn lengthSqr(self: Self) T {
+        pub inline fn lengthSqr(self: Self) T {
             var sum: T = 0;
-            for (self.data) |v| {
+            inline for (self.data) |v| {
                 sum += v * v;
             }
             return sum;
         }
 
-        pub fn length(self: Self) T {
+        pub inline fn length(self: Self) T {
             const len_sq = self.lengthSqr();
 
             if (comptime @typeInfo(T) == .int) {
@@ -291,12 +283,6 @@ test "VecX Element-wise Math and Scaling" {
     try std.testing.expectEqual(4, div.data[1]);
     try std.testing.expectEqual(3, div.data[2]);
     try std.testing.expectEqual(0, @TypeOf(div).dims.get(.L)); // M / M = Dimensionless
-
-    // Scale by primitive
-    const scaled = v1.scale(2);
-    try std.testing.expectEqual(20, scaled.data[0]);
-    try std.testing.expectEqual(40, scaled.data[1]);
-    try std.testing.expectEqual(60, scaled.data[2]);
 }
 
 test "VecX Conversions" {

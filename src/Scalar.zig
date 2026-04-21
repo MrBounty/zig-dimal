@@ -86,10 +86,6 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             }
         }
 
-        pub inline fn scale(self: Self, sc: T) Self {
-            return .{ .value = self.value * sc };
-        }
-
         pub inline fn to(self: Self, comptime Dest: type) Dest {
             if (comptime !dims.eql(Dest.dims))
                 @compileError("Dimension mismatch in to: " ++ dims.str() ++ " vs " ++ Dest.dims.str());
@@ -292,18 +288,14 @@ test "MulBy small" {
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.T));
 }
 
-test "Scale" {
+test "MulBy dimensionless" {
+    const DimLess = Scalar(i128, Dimensions.init(.{}), Scales.init(.{}));
     const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
     const d = Meter{ .value = 7 };
-    const scaled = d.scale(3);
+    const scaled = d.mulBy(DimLess{ .value = 3 });
     try std.testing.expectEqual(21, scaled.value);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
-
-    const t = Second{ .value = 1.5 };
-    const scaled_f = t.scale(4.0);
-    try std.testing.expectApproxEqAbs(@as(f32, 6.0), scaled_f.value, 1e-4);
 }
 
 test "Chained: velocity and acceleration" {

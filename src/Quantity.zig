@@ -61,7 +61,9 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             const RhsType = @TypeOf(rhs);
             const SelfNorm = Quantity(T, dims, scales.min(RhsType.scales));
             const RhsNorm = Quantity(T, RhsType.dims, scales.min(RhsType.scales));
-            // Only convert the side(s) that actually need it
+            if (comptime Self == SelfNorm and RhsType == RhsNorm)
+                return .{ .value = self.value * rhs.value };
+
             const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
             const rhs_val = if (comptime RhsType == RhsNorm) rhs.value else rhs.to(RhsNorm).value;
             return .{ .value = lhs_val * rhs_val };

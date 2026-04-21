@@ -3,12 +3,7 @@
     .version = "0.1.0",
     .fingerprint = 0x9453b1ff1e52d858,
     .minimum_zig_version = "0.16.0",
-    .dependencies = .{
-        .ztracy = .{
-            .url = "git+https://github.com/zig-gamedev/ztracy#d95d2a193b9f97944a17026c9a42b5d0f9a88c94",
-            .hash = "ztracy-0.14.0-dev-zHJSqzUHGQAmhJybhlwtl1QKevUBw4M5YKZqPfWx2y99",
-        },
-    },
+    .dependencies = .{},
     .paths = .{
         "build.zig",
         "build.zig.zon",

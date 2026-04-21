@@ -1,4 +1,5 @@
 const std = @import("std");
+const tracy = @import("ztracy");
 const Io = std.Io;
 const Scalar = @import("Scalar.zig").Scalar;
 const Vector = @import("Vector.zig").Vector;

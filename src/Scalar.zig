@@ -403,7 +403,7 @@ test "Format Quantity" {
     std.debug.print("Momentum: {f}\n", .{momentum});
 }
 
-test "Benchmark" {
+test "Benchmark Scalar" {
     const Io = std.Io;
     const ITERS: usize = 100_000;
     const SAMPLES: usize = 10; // Number of samples for stats

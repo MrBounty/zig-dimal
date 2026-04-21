@@ -288,23 +288,18 @@ pub fn QuantityVec3(Q: type) type {
         }
 
         pub fn length(self: Self) T {
-            if (comptime hlp.isInt(T))
-                return self.isqrt()
-            else
-                return @sqrt(self.x * self.x + self.y * self.y + self.z * self.z);
-        }
+            const len_sq = self.lengthSqr();
 
-        fn isqrt(self: Self) T {
-            const squared_sum = (self.x * self.x) + (self.y * self.y) + (self.z * self.z);
-            if (squared_sum <= 0) return 0;
+            if (comptime @typeInfo(T) == .int) {
+                // Construct the unsigned equivalent of T at comptime (e.g., i32 -> u32)
+                const UnsignedT = @Int(.unsigned, @typeInfo(T).int.bits);
 
-            var x = squared_sum;
-            var y = @divTrunc(x + 1, 2);
-            while (y < x) {
-                x = y;
-                y = @divTrunc(x + @divTrunc(squared_sum, x), 2);
+                // len_sq is always positive, so @intCast is perfectly safe
+                const u_len_sq = @as(UnsignedT, @intCast(len_sq));
+                return @as(T, @intCast(std.math.sqrt(u_len_sq)));
+            } else {
+                return @sqrt(len_sq);
             }
-            return x;
         }
     };
 }

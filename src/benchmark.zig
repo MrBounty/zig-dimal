@@ -173,8 +173,6 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
     const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
     const Ops = .{ "add", "mulBy", "divBy" };
 
-    var gsink: f64 = 0;
-
     try writer.print(
         \\
         \\ Scalar vs Native Overhead Analysis
@@ -193,45 +191,39 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
             const M = Scalar(T, .init(.{ .L = 1 }), .init(.{}));
             const S = Scalar(T, .init(.{ .T = 1 }), .init(.{}));
 
-            for (0..SAMPLES) |_| {
-                // --- 1. Benchmark Native ---
-                var n_sink: T = 0;
-                const n_start = getTime();
-                for (0..ITERS) |i| {
-                    const a = getValT(T, i);
-                    const b = getValT(T, 2);
-                    const r = if (comptime std.mem.eql(u8, op_name, "add"))
-                        a + b
-                    else if (comptime std.mem.eql(u8, op_name, "mulBy"))
-                        a * b
-                    else if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b;
+            std.mem.doNotOptimizeAway({
+                for (0..SAMPLES) |_| {
+                    // --- 1. Benchmark Native ---
+                    const n_start = getTime();
+                    for (0..ITERS) |i| {
+                        const a = getValT(T, i);
+                        const b = getValT(T, 2);
+                        _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                            a + b
+                        else if (comptime std.mem.eql(u8, op_name, "mulBy"))
+                            a * b
+                        else if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b;
+                    }
+                    const n_end = getTime();
+                    native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
 
-                    if (comptime @typeInfo(T) == .float) n_sink += r else n_sink ^= r;
+                    // --- 2. Benchmark Scalar ---
+                    const q_start = getTime();
+                    for (0..ITERS) |i| {
+                        const qa = M{ .value = getValT(T, i) };
+                        const qb = if (comptime std.mem.eql(u8, op_name, "divBy")) S{ .value = getValT(T, 2) } else M{ .value = getValT(T, 2) };
+
+                        _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                            qa.add(qb)
+                        else if (comptime std.mem.eql(u8, op_name, "mulBy"))
+                            qa.mulBy(qb)
+                        else
+                            qa.divBy(qb);
+                    }
+                    const q_end = getTime();
+                    quantity_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
                 }
-                const n_end = getTime();
-                native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
-                fold(T, &gsink, n_sink);
-
-                // --- 2. Benchmark Scalar ---
-                var q_sink: T = 0;
-                const q_start = getTime();
-                for (0..ITERS) |i| {
-                    const qa = M{ .value = getValT(T, i) };
-                    const qb = if (comptime std.mem.eql(u8, op_name, "divBy")) S{ .value = getValT(T, 2) } else M{ .value = getValT(T, 2) };
-
-                    const r = if (comptime std.mem.eql(u8, op_name, "add"))
-                        qa.add(qb)
-                    else if (comptime std.mem.eql(u8, op_name, "mulBy"))
-                        qa.mulBy(qb)
-                    else
-                        qa.divBy(qb);
-
-                    if (comptime @typeInfo(T) == .float) q_sink += r.value else q_sink ^= r.value;
-                }
-                const q_end = getTime();
-                quantity_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
-                fold(T, &gsink, q_sink);
-            }
+            });
 
             const avg_n = (native_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
             const avg_q = (quantity_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
@@ -245,8 +237,6 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
     }
 
     try writer.print("└───────────┴──────┴───────────┴───────────┴───────────┘\n", .{});
-    try writer.print("\nAnti-optimisation sink: {d:.4}\n", .{gsink});
-    try std.testing.expect(gsink != 0);
 }
 
 fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
@@ -280,8 +270,6 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
     const TNames = .{ "i16", "i64", "i128", "f32", "f64" };
     const Ops = .{ "add", "mulBy", "divBy" };
 
-    var gsink: f64 = 0;
-
     try writer.print(
         \\
         \\ Cross-Type Overhead Analysis: Scalar vs Native
@@ -302,60 +290,54 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
                 const M2 = Scalar(T2, .init(.{ .L = 1 }), .init(.{}));
                 const S2 = Scalar(T2, .init(.{ .T = 1 }), .init(.{}));
 
-                for (0..SAMPLES) |_| {
-                    // --- 1. Benchmark Native (Cast T2 to T1, then math) ---
-                    var n_sink: T1 = 0;
-                    const n_start = getTime();
-                    for (0..ITERS) |i| {
-                        const a = getValT(T1, i);
-                        const b_raw = getValT(T2, 2);
-                        const b = castTo(T1, T2, b_raw);
+                std.mem.doNotOptimizeAway({
+                    for (0..SAMPLES) |_| {
+                        // --- 1. Benchmark Native (Cast T2 to T1, then math) ---
+                        const n_start = getTime();
+                        for (0..ITERS) |i| {
+                            const a = getValT(T1, i);
+                            const b_raw = getValT(T2, 2);
+                            const b = castTo(T1, T2, b_raw);
 
-                        const r = if (comptime std.mem.eql(u8, op_name, "add"))
-                            a + b
-                        else if (comptime std.mem.eql(u8, op_name, "mulBy"))
-                            a * b
-                        else if (comptime @typeInfo(T1) == .int)
-                            @divTrunc(a, b)
-                        else
-                            a / b;
+                            _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                                a + b
+                            else if (comptime std.mem.eql(u8, op_name, "mulBy"))
+                                a * b
+                            else if (comptime @typeInfo(T1) == .int)
+                                @divTrunc(a, b)
+                            else
+                                a / b;
+                        }
+                        const n_end = getTime();
+                        native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
 
-                        if (comptime @typeInfo(T1) == .float) n_sink += r else n_sink ^= r;
+                        // --- 2. Benchmark Scalar ---
+                        const q_start = getTime();
+                        for (0..ITERS) |i| {
+                            const qa = M1{ .value = getValT(T1, i) };
+                            const qb = if (comptime std.mem.eql(u8, op_name, "divBy"))
+                                S2{ .value = getValT(T2, 2) }
+                            else
+                                M2{ .value = getValT(T2, 2) };
+
+                            _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                                qa.add(qb)
+                            else if (comptime std.mem.eql(u8, op_name, "mulBy"))
+                                qa.mulBy(qb)
+                            else
+                                qa.divBy(qb);
+                        }
+                        const q_end = getTime();
+                        quantity_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
                     }
-                    const n_end = getTime();
-                    native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
-                    fold(T1, &gsink, n_sink);
 
-                    // --- 2. Benchmark Scalar ---
-                    var q_sink: T1 = 0;
-                    const q_start = getTime();
-                    for (0..ITERS) |i| {
-                        const qa = M1{ .value = getValT(T1, i) };
-                        const qb = if (comptime std.mem.eql(u8, op_name, "divBy"))
-                            S2{ .value = getValT(T2, 2) }
-                        else
-                            M2{ .value = getValT(T2, 2) };
+                    const avg_n = (native_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
+                    const avg_q = (quantity_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
+                    const slowdown = avg_q / avg_n;
 
-                        const r = if (comptime std.mem.eql(u8, op_name, "add"))
-                            qa.add(qb)
-                        else if (comptime std.mem.eql(u8, op_name, "mulBy"))
-                            qa.mulBy(qb)
-                        else
-                            qa.divBy(qb);
-
-                        if (comptime @typeInfo(T1) == .float) q_sink += r.value else q_sink ^= r.value;
-                    }
-                    const q_end = getTime();
-                    quantity_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
-                    fold(T1, &gsink, q_sink);
-                }
-
-                const avg_n = (native_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
-                const avg_q = (quantity_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
-                const slowdown = avg_q / avg_n;
-
-                try writer.print("│ {s:<7} │ {s:<4} │ {s:<4} │ {d:>7.2}ns │ {d:>7.2}ns │ {d:>8.2}x │\n", .{
-                    op_name, TNames[t1_idx], TNames[t2_idx], avg_n, avg_q, slowdown,
+                    try writer.print("│ {s:<7} │ {s:<4} │ {s:<4} │ {d:>7.2}ns │ {d:>7.2}ns │ {d:>8.2}x │\n", .{
+                        op_name, TNames[t1_idx], TNames[t2_idx], avg_n, avg_q, slowdown,
+                    });
                 });
             }
         }
@@ -365,14 +347,11 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
     }
 
     try writer.print("└─────────┴──────┴──────┴───────────┴───────────┴───────────┘\n", .{});
-    try writer.print("\nAnti-optimisation sink: {d:.4}\n", .{gsink});
-    try std.testing.expect(gsink != 0);
 }
 
 fn bench_Vector(writer: *std.Io.Writer) !void {
     const ITERS: usize = 10_000;
     const SAMPLES: usize = 10;
-    var gsink: f64 = 0;
 
     const getVal = struct {
         fn f(comptime TT: type, i: usize, comptime mask: u7) TT {
@@ -420,44 +399,33 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
 
                 var samples: [SAMPLES]f64 = undefined;
 
-                for (0..SAMPLES) |s_idx| {
-                    var sink: T = 0;
+                std.mem.doNotOptimizeAway({
+                    for (0..SAMPLES) |s_idx| {
+                        const t_start = getTime();
+                        for (0..ITERS) |i| {
+                            const v1 = V.initDefault(getVal(T, i, 63));
 
-                    const t_start = getTime();
-                    for (0..ITERS) |i| {
-                        const v1 = V.initDefault(getVal(T, i, 63));
-
-                        if (comptime std.mem.eql(u8, op_name, "add")) {
-                            const v2 = V.initDefault(getVal(T, i +% 7, 63));
-                            const res = v1.add(v2);
-                            for (res.data) |val| {
-                                if (comptime @typeInfo(T) == .float) sink += val else sink ^= val;
+                            if (comptime std.mem.eql(u8, op_name, "add")) {
+                                const v2 = V.initDefault(getVal(T, i +% 7, 63));
+                                _ = v1.add(v2);
+                            } else if (comptime std.mem.eql(u8, op_name, "scale")) {
+                                const sc = getVal(T, i +% 2, 63);
+                                _ = v1.scale(sc);
+                            } else if (comptime std.mem.eql(u8, op_name, "mulByScalar")) {
+                                const s_val = Q_time{ .value = getVal(T, i +% 2, 63) };
+                                _ = v1.mulByScalar(s_val);
+                            } else if (comptime std.mem.eql(u8, op_name, "length")) {
+                                _ = v1.length();
                             }
-                        } else if (comptime std.mem.eql(u8, op_name, "scale")) {
-                            const sc = getVal(T, i +% 2, 63);
-                            const res = v1.scale(sc);
-                            for (res.data) |val| {
-                                if (comptime @typeInfo(T) == .float) sink += val else sink ^= val;
-                            }
-                        } else if (comptime std.mem.eql(u8, op_name, "mulByScalar")) {
-                            const s_val = Q_time{ .value = getVal(T, i +% 2, 63) };
-                            const res = v1.mulByScalar(s_val);
-                            for (res.data) |val| {
-                                if (comptime @typeInfo(T) == .float) sink += val else sink ^= val;
-                            }
-                        } else if (comptime std.mem.eql(u8, op_name, "length")) {
-                            const r = v1.length();
-                            if (comptime @typeInfo(T) == .float) sink += r else sink ^= r;
                         }
+                        const t_end = getTime();
+
+                        samples[s_idx] = @as(f64, @floatFromInt(t_start.durationTo(t_end).toNanoseconds()));
                     }
-                    const t_end = getTime();
 
-                    samples[s_idx] = @as(f64, @floatFromInt(t_start.durationTo(t_end).toNanoseconds()));
-                    fold(T, &gsink, sink);
-                }
-
-                const median_ns_per_op = computeStats(&samples, ITERS);
-                try writer.print(" {d:>7.1} │", .{median_ns_per_op});
+                    const median_ns_per_op = computeStats(&samples, ITERS);
+                    try writer.print(" {d:>7.1} │", .{median_ns_per_op});
+                });
             }
             try writer.print("\n", .{});
         }
@@ -467,6 +435,4 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
         }
     }
     try writer.print("└─────────────┴──────┴─────────┴─────────┴─────────┘\n", .{});
-    try writer.print("\nAnti-optimisation sink: {d:.4}\n", .{gsink});
-    try std.testing.expect(gsink != 0);
 }

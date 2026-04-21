@@ -7,7 +7,7 @@ const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
-pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
+pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
     return struct {
         value: T,
 
@@ -84,13 +84,13 @@ pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
 
             // Fast-path: Native pure-integer exact conversions
             if (comptime @typeInfo(T) == .int and @typeInfo(DestT) == .int) {
-                if (ratio >= 1.0 and @round(ratio) == ratio) {
-                    const mult: DestT = @intFromFloat(ratio);
+                if (comptime ratio >= 1.0 and @round(ratio) == ratio) {
+                    const mult: DestT = comptime @intFromFloat(ratio);
                     return .{ .value = @as(DestT, @intCast(self.value)) * mult };
-                } else if (ratio < 1.0 and @round(1.0 / ratio) == 1.0 / ratio) {
-                    const div: DestT = @intFromFloat(1.0 / ratio);
+                } else if (comptime ratio < 1.0 and @round(1.0 / ratio) == 1.0 / ratio) {
+                    const div: DestT = comptime @intFromFloat(1.0 / ratio);
                     const val = @as(DestT, @intCast(self.value));
-                    const half = div / 2;
+                    const half = comptime div / 2;
                     // Native round-to-nearest
                     const rounded = if (val >= 0) @divTrunc(val + half, div) else @divTrunc(val - half, div);
                     return .{ .value = rounded };
@@ -100,21 +100,22 @@ pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
             // Fallback preserving native Float types (e.g., f128 shouldn't downcast to f64)
             if (comptime @typeInfo(DestT) == .float) {
                 const val_f = switch (@typeInfo(T)) {
-                    .int => @as(DestT, @floatFromInt(self.value)),
-                    .float => @as(DestT, @floatCast(self.value)),
+                    inline .int => @as(DestT, @floatFromInt(self.value)),
+                    inline .float => @as(DestT, @floatCast(self.value)),
                     else => unreachable,
                 };
                 return .{ .value = val_f * @as(DestT, @floatCast(ratio)) };
             } else {
                 const val_f = switch (@typeInfo(T)) {
-                    .int => @as(f64, @floatFromInt(self.value)),
-                    .float => @as(f64, @floatCast(self.value)),
+                    inline .int => @as(f64, @floatFromInt(self.value)),
+                    inline .float => @as(f64, @floatCast(self.value)),
                     else => unreachable,
                 };
                 return .{ .value = @intFromFloat(@round(val_f * ratio)) };
             }
         }
-        pub fn Vec(self: Self, comptime len: usize) QuantityVec(len, Self) {
+
+        pub fn Vec(self: Self, comptime len: comptime_int) QuantityVec(len, Self) {
             return QuantityVec(len, Self).initDefault(self.value);
         }
 

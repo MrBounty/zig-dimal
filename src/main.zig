@@ -17,34 +17,6 @@ pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
         pub const dims: Dimensions = d;
         pub const scales = s;
 
-        /// Internal helper to convert any supported T to f64 for math
-        fn toF64(val: anytype) f64 {
-            const TIn = @TypeOf(val);
-            return switch (@typeInfo(TIn)) {
-                .int => @floatFromInt(val),
-                .float => @floatCast(val),
-                else => @compileError("Unsupported type for Quantity"),
-            };
-        }
-
-        /// Internal helper to convert f64 back to the target T
-        fn fromF64(val: f64) T {
-            return switch (@typeInfo(T)) {
-                .int => @intFromFloat(@round(val)),
-                .float => @floatCast(val),
-                else => unreachable,
-            };
-        }
-
-        /// Helper for integer power of 10 at comptime
-        fn pow10(comptime exp: i32) T {
-            var res: T = 1;
-            var i: i32 = 0;
-            const abs_exp = if (exp < 0) -exp else exp;
-            while (i < abs_exp) : (i += 1) res *= 10;
-            return res;
-        }
-
         pub fn add(self: Self, rhs: anytype) Quantity(
             T,
             dims,

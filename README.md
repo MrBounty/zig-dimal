@@ -137,6 +137,36 @@ const length = gravity.length(); // Returns f32: 1.0
 
 ---
 
+## High Precision & Integer Backing
+
+While most libraries default to `f32` or `f64`, `zig_units` is mainly designed to support **large-bit integers (`i128`, `i256`)**. 
+
+This is critical for applications like **space simulations**, where floating-point numbers suffer from "jitter" or "flickering"
+once you travel far from the origin. By using an `i128` with a millimeter scale, you can represent the diameter
+of the observable universe with millimeter precision—something impossible with `f64`.
+
+### Avoiding Floating-Point Jitter
+```zig
+// Millimeter precision using 128-bit integers
+const MM  = units.Base.Meter.Scaled(i128, units.Scales.init(.{ .L = .m }));
+const KM  = units.Base.Meter.Scaled(i128, units.Scales.init(.{ .L = .k }));
+
+const solar_system_dist = KM{ .value = 150_000_000 }; // 150 million km
+const ship_nudge        = MM{ .value = 5 };           // 5 mm
+
+// The library performs exact integer math for conversions.
+// Resulting type is MM (the finer scale), maintaining perfect precision.
+const new_pos = solar_system_dist.add(ship_nudge); 
+```
+
+### Integer-Specific Features
+- **Exact Conversions:** When converting between integer scales (e.g., `km` to `m`), the library uses fast-path native multiplication/division.
+- **Round-to-Nearest:** When downscaling integers (e.g., converting `1400mm` to `m`), the library uses native round-to-nearest logic (`val + half / div`) to minimize truncation errors.
+- **Safe Vector Lengths:** `QuantityVec.length()` includes a custom integer square root implementation, allowing you to calculate distances between coordinates without ever casting to a float.
+- **Zero Drift:** Unlike floats, repeated additions and subtractions of integers never accumulate "epsilon" drift, ensuring your simulation remains deterministic.
+
+---
+
 ## SI Scales Reference
 
 | Prefix | Enum | Factor |

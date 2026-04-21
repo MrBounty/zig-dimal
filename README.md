@@ -1,7 +1,5 @@
 # zig_units
 
-**Compile-time dimensional analysis and physical quantities for Zig.**
-
 `zig_units` lets you attach physical units to numeric values so that dimension mismatches (like adding distance to time) become **compile errors** rather than silent bugs. 
 
 At runtime, a `Quantity` is just its underlying numeric value — **zero memory overhead.**

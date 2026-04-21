@@ -26,12 +26,14 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
         ) {
             if (comptime !dims.eql(@TypeOf(rhs).dims))
                 @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
+            if (comptime @TypeOf(rhs) == Self)
+                return .{ .value = self.value + rhs.value };
 
             const TargetType = Quantity(T, dims, scales.min(@TypeOf(rhs).scales));
-            const lhs_converted = self.to(TargetType);
-            const rhs_converted = rhs.to(TargetType);
+            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
-            return .{ .value = lhs_converted.value + rhs_converted.value };
+            return .{ .value = lhs_val + rhs_val };
         }
 
         pub inline fn sub(self: Self, rhs: anytype) Quantity(
@@ -41,12 +43,14 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
         ) {
             if (comptime !dims.eql(@TypeOf(rhs).dims))
                 @compileError("Dimension mismatch in sub: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
+            if (comptime @TypeOf(rhs) == Self)
+                return .{ .value = self.value - rhs.value };
 
             const TargetType = Quantity(T, dims, scales.min(@TypeOf(rhs).scales));
-            const lhs_converted = self.to(TargetType);
-            const rhs_converted = rhs.to(TargetType);
+            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
-            return .{ .value = lhs_converted.value - rhs_converted.value };
+            return .{ .value = lhs_val - rhs_val };
         }
 
         pub inline fn mulBy(self: Self, rhs: anytype) Quantity(
@@ -54,19 +58,29 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             dims.add(@TypeOf(rhs).dims),
             scales.min(@TypeOf(rhs).scales),
         ) {
-            const self_ = self.to(Quantity(T, dims, scales.min(@TypeOf(rhs).scales)));
-            const rhs_ = rhs.to(Quantity(T, @TypeOf(rhs).dims, scales.min(@TypeOf(rhs).scales)));
-            return .{ .value = self_.value * rhs_.value };
+            const RhsType = @TypeOf(rhs);
+            const SelfNorm = Quantity(T, dims, scales.min(RhsType.scales));
+            const RhsNorm = Quantity(T, RhsType.dims, scales.min(RhsType.scales));
+            // Only convert the side(s) that actually need it
+            const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
+            const rhs_val = if (comptime RhsType == RhsNorm) rhs.value else rhs.to(RhsNorm).value;
+            return .{ .value = lhs_val * rhs_val };
         }
 
-        pub inline fn divBy(self: Self, rhs: anytype) Quantity(T, dims.sub(@TypeOf(rhs).dims), scales.min(@TypeOf(rhs).scales)) {
-            const self_ = self.to(Quantity(T, dims, scales.min(@TypeOf(rhs).scales)));
-            const rhs_ = rhs.to(Quantity(T, @TypeOf(rhs).dims, scales.min(@TypeOf(rhs).scales)));
-
+        pub inline fn divBy(self: Self, rhs: anytype) Quantity(
+            T,
+            dims.sub(@TypeOf(rhs).dims),
+            scales.min(@TypeOf(rhs).scales),
+        ) {
+            const RhsType = @TypeOf(rhs);
+            const SelfNorm = Quantity(T, dims, scales.min(RhsType.scales));
+            const RhsNorm = Quantity(T, RhsType.dims, scales.min(RhsType.scales));
+            const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
+            const rhs_val = if (comptime RhsType == RhsNorm) rhs.value else rhs.to(RhsNorm).value;
             if (comptime @typeInfo(T) == .int) {
-                return .{ .value = @divTrunc(self_.value, rhs_.value) };
+                return .{ .value = @divTrunc(lhs_val, rhs_val) };
             } else {
-                return .{ .value = self_.value / rhs_.value };
+                return .{ .value = lhs_val / rhs_val };
             }
         }
 

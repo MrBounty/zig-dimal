@@ -13,7 +13,7 @@ pub fn QtyNamespace(comptime d: anytype) type {
 
         /// Creates a Quantity of this dimension using default scales.
         /// Example: const V = Quantities.Velocity.Base(f32);
-        pub fn Base(comptime T: type) type {
+        pub fn Of(comptime T: type) type {
             return Quantity(T, dims, Scales.init(.{}));
         }
 
@@ -95,7 +95,7 @@ pub const SurfaceTension = QtyNamespace(.{ .M = 1, .T = -2 }); // Corrected from
 
 test "BaseQuantities - Core dimensions instantiation" {
     // Basic types via generic wrappers
-    const M = Meter.Base(f32);
+    const M = Meter.Of(f32);
     const distance = M{ .value = 100.0 };
     try std.testing.expectEqual(100.0, distance.value);
     try std.testing.expectEqual(1, M.dims.get(.L));
@@ -110,8 +110,8 @@ test "BaseQuantities - Core dimensions instantiation" {
 }
 
 test "BaseQuantities - Kinematics equations" {
-    const d = Meter.Base(f32){ .value = 50.0 };
-    const t = Second.Base(f32){ .value = 2.0 };
+    const d = Meter.Of(f32){ .value = 50.0 };
+    const t = Second.Of(f32){ .value = 2.0 };
 
     // Velocity = Distance / Time
     const v = d.divBy(t);
@@ -128,7 +128,7 @@ test "BaseQuantities - Dynamics (Force and Work)" {
     // 10 kg
     const m = Gramm.Scaled(f32, Scales.init(.{ .M = .k })){ .value = 10.0 };
     // 9.8 m/s^2
-    const a = Acceleration.Base(f32){ .value = 9.8 };
+    const a = Acceleration.Of(f32){ .value = 9.8 };
 
     // Force = mass * acceleration
     const f = m.mulBy(a);
@@ -136,15 +136,15 @@ test "BaseQuantities - Dynamics (Force and Work)" {
     try std.testing.expect(Force.dims.eql(@TypeOf(f).dims));
 
     // Energy (Work) = Force * distance
-    const distance = Meter.Base(f32){ .value = 5.0 };
+    const distance = Meter.Of(f32){ .value = 5.0 };
     const energy = f.mulBy(distance);
     try std.testing.expectEqual(490000, energy.value);
     try std.testing.expect(Energy.dims.eql(@TypeOf(energy).dims));
 }
 
 test "BaseQuantities - Electric combinations" {
-    const current = ElectricCurrent.Base(f32){ .value = 2.0 }; // 2 A
-    const time = Second.Base(f32){ .value = 3.0 }; // 3 s
+    const current = ElectricCurrent.Of(f32){ .value = 2.0 }; // 2 A
+    const time = Second.Of(f32){ .value = 3.0 }; // 3 s
 
     // Charge = Current * time
     const charge = current.mulBy(time);

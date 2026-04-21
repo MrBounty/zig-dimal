@@ -80,7 +80,7 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
 
     const Types = .{ i16, i32, i64, i128, i256, f32, f64, f128 };
     const TNames = .{ "i16", "i32", "i64", "i128", "i256", "f32", "f64", "f128" };
-    const Ops = .{ "add", "sub", "mulBy", "divBy", "scale", "to" };
+    const Ops = .{ "add", "sub", "mulBy", "divBy", "to" };
 
     var results_matrix: [Ops.len][Types.len]f64 = undefined;
 
@@ -107,8 +107,6 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
                                 (M{ .value = getVal(T, i, 63) }).mulBy(M{ .value = getVal(T, i +% 1, 63) })
                             else if (comptime std.mem.eql(u8, op_name, "divBy"))
                                 (M{ .value = getVal(T, i +% 10, 63) }).divBy(S{ .value = getVal(T, i, 63) })
-                            else if (comptime std.mem.eql(u8, op_name, "scale"))
-                                (M{ .value = getVal(T, i, 63) }).scale(getVal(T, i +% 2, 63))
                             else
                                 (KM{ .value = getVal(T, i, 15) }).to(M);
                         },
@@ -380,7 +378,7 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
     const Types = .{ i32, i64, i128, f32, f64 };
     const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
     const Lengths = .{ 3, 4, 16 };
-    const Ops = .{ "add", "scale", "mulByScalar", "length" };
+    const Ops = .{ "add", "divBy", "mulByScalar", "length" };
 
     inline for (Ops, 0..) |op_name, o_idx| {
         inline for (Types, TNames) |T, tname| {
@@ -402,9 +400,8 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
                             if (comptime std.mem.eql(u8, op_name, "add")) {
                                 const v2 = V.initDefault(getVal(T, i +% 7, 63));
                                 _ = v1.add(v2);
-                            } else if (comptime std.mem.eql(u8, op_name, "scale")) {
-                                const sc = getVal(T, i +% 2, 63);
-                                _ = v1.scale(sc);
+                            } else if (comptime std.mem.eql(u8, op_name, "divBy")) {
+                                _ = v1.divBy(V.initDefault(getVal(T, i +% 2, 63)));
                             } else if (comptime std.mem.eql(u8, op_name, "mulByScalar")) {
                                 const s_val = Q_time{ .value = getVal(T, i +% 2, 63) };
                                 _ = v1.mulByScalar(s_val);

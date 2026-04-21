@@ -8,7 +8,7 @@ const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
 pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
-    @setEvalBranchQuota(100_000);
+    @setEvalBranchQuota(10_000_000);
     return struct {
         value: T,
 

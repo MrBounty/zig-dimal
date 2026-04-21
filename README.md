@@ -1,268 +1,232 @@
-# zig_units
+# dimal — Dimensional Analysis for Zig
 
-`zig_units` lets you attach physical units to numeric values so that dimension mismatches (like adding distance to time) become **compile errors** rather than silent bugs. 
+A comptime-first dimensional analysis module for Zig. If you try to add meters to seconds, **it won't compile**. That's the point.
 
-At runtime, a `Quantity` is just its underlying numeric value — **zero memory overhead.**
+Born from a space simulation where `i128` positions were needed to avoid float imprecision far from the origin, this module grew into a full physical-unit type system with zero runtime overhead.
 
-```zig
-const velocity = distance.divBy(time);  // Result type: L¹T⁻¹  ✓
-const error    = mass.add(velocity);    // COMPILE ERROR: M¹ != L¹T⁻¹
-```
+> **Source:** [git.bouvais.lu/adrien/zig-dimal](https://git.bouvais.lu/adrien/zig-dimal)  
+> **Minimum Zig version:** `0.16.0`
 
-**Requirements:** Zig `0.16.0`
+---
+
+## Features
+
+- **100% comptime** — all dimension and unit tracking happens at compile time. No added memory, *almost* native performance.
+- **Compile-time dimension errors** — adding `Meter` to `Second` is a compile error, not a runtime panic.
+- **Automatic unit conversion** — use `.to()` to convert between compatible units (e.g. `km/h` → `m/s`). Scale factors are resolved at comptime.
+- **Full SI prefix support** — `pico`, `nano`, `micro`, `milli`, `centi`, `deci`, `kilo`, `mega`, `giga`, `tera`, `peta`, and more.
+- **Time scale support** — `min`, `hour`, `year` built in.
+- **Scalar and Vector types** — operate on individual values or fixed-size arrays with the same dimensional safety.
+- **Built-in physical quantities** — `dma.Base` provides ready-made types for `Velocity`, `Acceleration`, `Force`, `Energy`, `Pressure`, `ElectricCharge`, `ThermalConductivity`, and many more.
+- **Rich formatting** — values print with their unit automatically: `9.81m.s⁻²`, `42m.kg.s⁻¹`, `0.172km`.
+- **`i128` support** — the whole reason this exists. Use large integers for high-precision fixed-point positions without manual conversion.
+- **Tests and benchmarks included** — run them and see how it performs on your machine (results welcome!).
+
+---
+
+## The 7 SI Base Dimensions
+
+| Symbol | Dimension            | SI Unit  |
+|--------|----------------------|----------|
+| `L`    | Length               | `m`      |
+| `M`    | Mass                 | `g`      |
+| `T`    | Time                 | `s`      |
+| `I`    | Electric Current     | `A`      |
+| `Tp`   | Temperature          | `K`      |
+| `N`    | Amount of Substance  | `mol`    |
+| `J`    | Luminous Intensity   | `cd`     |
 
 ---
 
 ## Installation
 
-### 1. Add as a Zig dependency
-```bash
-zig fetch --save https://github.com/YOUR_USERNAME/zig_units/archive/refs/heads/main.tar.gz
+### 1. Fetch the dependency
+
+```sh
+zig fetch --save git+https://git.bouvais.lu/adrien/zig-dimal#b9647e04266e3f395cfd26b41622b0c119a1e5be
 ```
 
-### 2. Configure `build.zig`
+This will add the following to your `build.zig.zon` automatically:
+
 ```zig
-const zig_units = b.dependency("zig_units", .{
-    .target = target,
-    .optimize = optimize,
-});
-// Add to your module or executable
-exe.root_module.addImport("units", zig_units.module("zig_units"));
+.dependencies = .{
+    .dimal = .{
+        .url = "git+https://git.bouvais.lu/adrien/zig-dimal#b9647e04266e3f395cfd26b41622b0c119a1e5be",
+        .hash = "dimal-0.1.0-WNhSHvomAQAX1ISvq9ZBal-Gam6078y8hE67aC82l63V",
+    },
+},
 ```
 
----
-
-## Quick Start: Using Predefined Quantities
-
-`units.Base` provides a clean way to instantiate common physical types without manually defining dimensions.
+### 2. Wire it up in `build.zig`
 
 ```zig
 const std = @import("std");
-const units = @import("units");
 
-pub fn main() !void {
-    // Instantiate types for f32 backing
-    const Meter  = units.Base.Meter.Of(f32);
-    const Second = units.Base.Second.Of(f32);
-    
-    const dist = Meter{ .value = 10.0 };
-    const time = Second{ .value = 2.0 };
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const dimal = b.dependency("dimal", .{}).module("dimal");
 
-    // Arithmetic is type-safe and creates the correct resulting dimension
-    const vel = dist.divBy(time); // Type is Velocity (L/T)
-    
-    std.debug.print("Speed: {f}\n", .{vel}); // Output: 5m.s⁻¹
+    const exe = b.addExecutable(.{
+        .name = "my_project",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .imports = &.{.{
+                .name = "dimal",
+                .module = dimal,
+            }},
+        }),
+    });
+    b.installArtifact(exe);
 }
 ```
 
----
-
-### Core Arithmetic Operations
-
-Dimensional analysis is handled entirely at compile-time. If the math doesn't make physical sense, it won't compile.
+### 3. Import in your code
 
 ```zig
-const M = units.Base.Meter.Of(f32);
-const S = units.Base.Second.Of(f32);
-
-const dist = M{ .value = 100.0 };
-const time = S{ .value = 5.0 };
-
-// 1. Addition & Subtraction (Must have same dimensions)
-const two_dist = dist.add(dist); // 200.0m
-const zero     = dist.sub(dist); // 0.0m
-
-// 2. Division (Subtracts dimension exponents)
-// Result: Velocity (L¹ T⁻¹)
-const vel = dist.divBy(time); // 20.0 m.s⁻¹
-
-// 3. Multiplication (Adds dimension exponents)
-// Result: Area (L²)
-const area = dist.mulBy(dist); // 100.0 m²
-
-// 4. Chained Operations
-// Result: Acceleration (L¹ T⁻²)
-const accel = dist.divBy(time).divBy(time); // 4.0 m.s⁻²
+const dma = @import("dimal");
+const Scalar     = dma.Scalar;
+const Dimensions = dma.Dimensions;
+const Scales     = dma.Scales;
 ```
 
 ---
 
-## Defining Custom Quantities
+## Quick Start
 
-You aren't limited to the built-in library. You can define any physical quantity by specifying its **Dimensions**
-(powers of base units) and its **Scale** (SI prefixes).
+### Defining unit types
 
-### 1. Create a custom dimension
-Dimensions are defined by 7 base SI units: `L` (Length), `M` (Mass), `T` (Time), `I` (Current), `Tp` (Temp), `N` (Substance), `J` (Intensity).
+A `Scalar` type is parameterized by three things: the numeric type (`f64`, `i128`, …), the dimensions (which physical quantities, and their exponents), and the scales (SI prefixes or custom time units).
 
 ```zig
-const Dims = units.Dimensions;
-const Scales = units.Scales;
-
-// Frequency is T⁻¹
-const FreqDims = Dims.init(.{ .T = -1 });
-
-// Force is M¹ L¹ T⁻²
-const ForceDims = Dims.init(.{ .M = 1, .L = 1, .T = -2 });
+const Meter     = Scalar(f64, .init(.{ .L = 1 }),            .init(.{}));
+const KiloMeter = Scalar(f64, .init(.{ .L = 1 }),            .init(.{ .L = .k }));
+const Second    = Scalar(f64, .init(.{ .T = 1 }),            .init(.{}));
+const Velocity  = Scalar(f64, .init(.{ .L = 1, .T = -1 }),  .init(.{}));
+const Kmh       = Scalar(f64, .init(.{ .L = 1, .T = -1 }),  .init(.{ .L = .k, .T = .hour }));
 ```
 
-### 2. Create a custom Type
-Combine a numeric type, the dimensions, and a scale.
+Or use the pre-built helpers from `dma.Base`:
 
 ```zig
-const Hertz = units.Quantity(f32, FreqDims, Scales.init(.{}));
-
-// A specialized scale: Millimeters per Second Squared
-const MmPerSecSq = units.Quantity(f32, 
-    Dims.init(.{ .L = 1, .T = -2 }), 
-    Scales.init(.{ .L = .m }) // .m = milli
-);
+const Acceleration = dma.Base.Acceleration.Of(f64);
+const KmhSpeed     = dma.Base.Speed.Scaled(f64, Scales.init(.{ .L = .k, .T = .hour }));
 ```
+
+### Kinematics example
+
+```zig
+const v0    = Velocity{ .value = 10.0 };  // 10 m/s
+const accel = Acceleration{ .value = 9.81 }; // 9.81 m/s²
+const time  = Second{ .value = 5.0 };     // 5 s
+
+// d = v₀t + ½at²
+const d1 = v0.mulBy(time);                     // → Meter
+const d2 = accel.mulBy(time.mulBy(time)).scale(0.5); // → Meter
+const dist = d1.add(d2);
+
+const v_final = v0.add(accel.mulBy(time));
+
+std.debug.print("Distance: {d} | {d}\n", .{ dist, dist.to(KiloMeter) });
+// Distance: 172.625m | 0.172625km
+
+std.debug.print("Final speed: {d:.2}\n", .{v_final});
+// Final speed: 59.05m.s⁻¹
+```
+
+### Unit conversion
+
+`.to()` converts between compatible units at comptime. Mixing incompatible dimensions is a **compile error**.
+
+```zig
+const speed_kmh = Kmh{ .value = 120.0 };
+const speed_ms  = speed_kmh.to(Velocity); // 33.333... m/s — comptime ratio
+
+// This would NOT compile:
+// const bad = speed_kmh.to(Second); // "Dimension mismatch in to: L1T-1 vs T1"
+```
+
+### Working with Vectors
+
+Every `Scalar` type exposes a `.Vec3` and a generic `.Vec(n)`:
+
+```zig
+const Vec3Meter = Meter.Vec3; // or: Vector(3, Meter)
+
+const pos = Vec3Meter{ .data = .{ 100, 200, 300 } };
+const t   = Second{ .value = 10 };
+
+const vel = pos.divByScalar(t); // → Vec3 of Velocity (m/s)
+
+std.debug.print("{d}\n", .{vel}); // (10, 20, 30)m.s⁻¹
+```
+
+Vectors support: `add`, `sub`, `mulBy`, `divBy`, `mulByScalar`, `divByScalar`, `negate`, `to`, `length`, `lengthSqr`.
 
 ---
 
-## Unit Conversions
+## API Reference
 
-The library handles SI prefixes (`k`, `m`, `u`, `n`, etc.) and time aliases (`.min`, `.hour`) automatically.
-When performing arithmetic between different scales, the **finer (smaller) scale wins** to preserve precision.
+### `Scalar(T, dims, scales)`
 
-```zig
-const KM = units.Base.Meter.Scaled(f32, Scales.init(.{ .L = .k })); // Kilometers
-const M  = units.Base.Meter.Of(f32);                               // Meters
+| Method | Description |
+|---|---|
+| `.add(rhs)` | Add two quantities of the same dimension. Auto-converts scales. |
+| `.sub(rhs)` | Subtract. Auto-converts scales. |
+| `.mulBy(rhs)` | Multiply — dimensions are **summed**. `m * s⁻¹` → `m·s⁻¹`. |
+| `.divBy(rhs)` | Divide — dimensions are **subtracted**. `m / s` → `m·s⁻¹`. |
+| `.to(DestType)` | Convert to another unit of the same dimension. Compile error on mismatch. |
+| `.vec3()` | Wrap the value in a `Vec3` of the same type. |
+| `.Vec(n)` | Get the `Vector(n, Self)` type. |
 
-const d1 = KM{ .value = 1.2 };  // 1.2 km
-const d2 = M{ .value = 300.0 }; // 300 m
+### `dma.Base` — Pre-built quantities
 
-const total = d1.add(d2);      // Result is 1500.0 (Meters)
-const final = total.to(KM);    // Explicitly convert back to KM -> 1.5
-```
+A selection of what's available (call `.Of(T)` for base units, `.Scaled(T, scales)` for custom scales):
 
----
+`Meter`, `Second`, `Gramm`, `Kelvin`, `ElectricCurrent`, `Speed`, `Acceleration`, `Inertia`, `Force`, `Pressure`, `Energy`, `Power`, `Area`, `Volume`, `Density`, `Frequency`, `Viscosity`, `ElectricCharge`, `ElectricPotential`, `ElectricResistance`, `MagneticFlux`, `ThermalCapacity`, `ThermalConductivity`, and more.
 
-## Physical Vectors (Vec3)
+### `Scales` — SI prefixes
 
-Physical quantities often come in 3D vectors (Position, Velocity, Force). Every `Quantity` type has a `.Vec3` alias built-in.
-
-```zig
-const Vec3M = units.Base.Meter.Of(f32).Vec3;
-
-const gravity = Vec3M{ .data = .{ 0, -9.81, 0 } };
-const pos     = Vec3M.initDefault(0); // [0, 0, 0]
-
-// Vectors support standard operations
-const length = gravity.length(); // Returns f32: 9.81
-const double = gravity.scale(2.0);
-```
-
-You can also create a Vector of any length.
-Vec3 found in a Quantity is just a convenience.
-
-```zig
-const M  = units.Base.Meter.Of(f32);
-const Vec10M = units.QuantityVec(10, Meter);
-
-const gravity = Vec10M.initDefault(1);
-const length = gravity.length(); // Returns f32: 1.0
-```
+| Tag | Factor |
+|---|---|
+| `.P` | 10¹⁵ |
+| `.T` | 10¹² |
+| `.G` | 10⁹ |
+| `.M` | 10⁶ |
+| `.k` | 10³ |
+| `.none` | 1 |
+| `.c` | 10⁻² |
+| `.m` | 10⁻³ |
+| `.u` | 10⁻⁶ |
+| `.n` | 10⁻⁹ |
+| `.p` | 10⁻¹² |
+| `.f` | 10⁻¹⁵ |
+| `.min` | 60 |
+| `.hour` | 3600 |
+| `.year` | 31 536 000 |
 
 ---
 
-## High Precision & Integer Backing
+## Running Tests and Benchmarks
 
-While most libraries default to `f32` or `f64`, `zig_units` is mainly designed to support **large-bit integers (`i128`, `i256`)**. 
-
-This is critical for applications like **space simulations**, where floating-point numbers suffer from "jitter" or "flickering"
-once you travel far from the origin. By using an `i128` with a millimeter scale, you can represent the diameter
-of the observable universe with millimeter precision—something impossible with `f64`.
-
-### Avoiding Floating-Point Jitter
-```zig
-// Millimeter precision using 128-bit integers
-const MM  = units.Base.Meter.Scaled(i128, units.Scales.init(.{ .L = .m }));
-const KM  = units.Base.Meter.Scaled(i128, units.Scales.init(.{ .L = .k }));
-
-const solar_system_dist = KM{ .value = 150_000_000 }; // 150 million km
-const ship_nudge        = MM{ .value = 5 };           // 5 mm
-
-// The library performs exact integer math for conversions.
-// Resulting type is MM (the finer scale), maintaining perfect precision.
-const new_pos = solar_system_dist.add(ship_nudge); 
-```
-
-### Integer-Specific Features
- *   **Exact Conversions:** When converting between integer scales (e.g., `km` to `m`), the library uses fast-path native multiplication.
- *   **Safe Vector Lengths:** `QuantityVec.length()` includes a custom integer square root implementation, allowing you to calculate distances between coordinates without ever casting to a float.
- *   **Zero Drift:** Unlike floats, repeated additions and subtractions of integers never accumulate "epsilon" drift, ensuring your simulation remains deterministic.
- *   **Precision-First Scaling:** When operating on two different scales (e.g., adding `km` and `mm`), the result automatically adopts the finer scale (`mm`). This ensures **zero implicit data loss** during calculation. You only lose precision if you *explicitly* choose to convert back to a coarser scale using `.to()`.
-
----
-
-## SI Scales Reference
-
-| Prefix | Enum | Factor |
-| :--- | :--- | :--- |
-| **Kilo** | `.k` | 10³ |
-| **Mega** | `.M` | 10⁶ |
-| **Giga** | `.G` | 10⁹ |
-| **Milli** | `.m` | 10⁻³ |
-| **Micro** | `.u` | 10⁻⁶ |
-| **Minute**| `.min` | 60 |
-| **Hour**  | `.hour`| 3,600 |
-
----
-
-## API Summary
-
-### `Quantity(T, dims, scales)`
-- `.add(rhs)` / `.sub(rhs)`: Automatic scaling, requires same dimensions.
-- `.mulBy(rhs)` / `.divBy(rhs)`: Composes dimensions (e.g., $L \times L = L^2$).
-- `.scale(scalar)`: Multiply by a raw number (preserves dimensions).
-- `.to(OtherType)`: Safely convert between scales of the same dimension.
-- `.vec3()`: Create a 3D vector from a scalar.
-
-### `Dimensions`
-- `L`: Length (m)
-- `M`: Mass (g)
-- `T`: Time (s)
-- `I`: Current (A)
-- `Tp`: Temperature (K)
-- `N`: Amount (mol)
-- `J`: Intensity (cd)
-
----
-
-## Testing & Benchmarks
-
-`zig_units` comes with a comprehensive test suite that verifies dimensional correctness, SI prefix scaling,
-and vector math accuracy across all numeric types.
-
-### Running Tests
-To run the full suite of unit tests and performance benchmarks:
-```bash
+```sh
 zig build test
+zig build benchmark
 ```
 
-### Benchmarks
-When you run the tests, the library also executes a performance benchmark.
-This measures the cost of operations (in nanoseconds per operation) across different backing types (`i32` to `f128`) and vector lengths.
+Benchmark results are very welcome — feel free to share yours!
 
-Because all dimensional logic is resolved at **compile-time**, you will see that `Quantity` operations perform at the same speed as raw primitive math.
+---
 
-**Example Benchmark Output:**
-```text
- Quantity<T> benchmark — 100,000 iterations, 10 samples/cell
+## Roadmap / Known Limitations
 
-┌───────────────────┬──────┬─────────────────────┬─────────────────────┐
-│ Operation         │ Type │ ns / op (± delta)   │ Throughput (ops/s)  │
-├───────────────────┼──────┼─────────────────────┼─────────────────────┤
-│ add               │ i32  │     0.18 ns ±0.02   │          5555555556 │
-│ mulBy             │ f64  │     0.22 ns ±0.01   │          4545454545 │
-└───────────────────┴──────┴─────────────────────┴─────────────────────┘
-```
+- More operations beyond `add`, `sub`, `mulBy`, `divBy` (e.g. `pow`, `sqrt`).
+- SIMD acceleration for `Vector` operations.
+- Some paths may still fall back to runtime computation — optimization ongoing.
+- More test coverage.
 
-### Verification Examples
-The test suite ensures that:
-- **Dimension Safety:** Chained operations like `dist.divBy(time).divBy(time)` correctly result in an Acceleration type.
-- **Scale Accuracy:** Adding `1km + 1mm` results exactly in `1000001mm` without truncation.
-- **Formatting:** Quantities print correctly with Unicode superscripts (e.g., `9.81m.s⁻²`).
-- **Vector Math:** Euclidean lengths for both floats and integers are verified against known constants.
+---
+
+## License
+
+See the repository for license details.

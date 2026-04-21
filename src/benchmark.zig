@@ -6,6 +6,9 @@ const Vector = @import("Vector.zig").Vector;
 
 var io: Io = undefined;
 pub fn main(init: std.process.Init) !void {
+    const zone = tracy.ZoneN(@src(), "Main Loop");
+    defer zone.End();
+
     var stdout_buf: [4096]u8 = undefined;
     var stdout_writer: std.Io.File.Writer = .init(.stdout(), init.io, &stdout_buf);
     try stdout_writer.interface.print("Starting Benchmarks...", .{});
@@ -20,6 +23,8 @@ pub fn main(init: std.process.Init) !void {
     try stdout_writer.flush();
     try bench_Vector(&stdout_writer.interface);
     try stdout_writer.flush();
+
+    tracy.FrameMark();
 }
 
 fn getTime() Io.Timestamp {
@@ -36,8 +41,6 @@ fn fold(comptime TT: type, s: *f64, v: TT) void {
 fn bench_Scalar(writer: *std.Io.Writer) !void {
     const ITERS: usize = 100_000;
     const SAMPLES: usize = 10;
-
-    var gsink: f64 = 0;
 
     const getVal = struct {
         fn f(comptime TT: type, i: usize, comptime mask: u7) TT {
@@ -97,29 +100,29 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
             var samples: [SAMPLES]f64 = undefined;
 
             for (0..SAMPLES) |s_idx| {
-                var sink: T = 0;
                 const t_start = getTime();
 
                 for (0..ITERS) |i| {
-                    const r = if (comptime std.mem.eql(u8, op_name, "add"))
-                        (M{ .value = getVal(T, i, 63) }).add(M{ .value = getVal(T, i +% 7, 63) })
-                    else if (comptime std.mem.eql(u8, op_name, "sub"))
-                        (M{ .value = getVal(T, i +% 10, 63) }).sub(M{ .value = getVal(T, i, 63) })
-                    else if (comptime std.mem.eql(u8, op_name, "mulBy"))
-                        (M{ .value = getVal(T, i, 63) }).mulBy(M{ .value = getVal(T, i +% 1, 63) })
-                    else if (comptime std.mem.eql(u8, op_name, "divBy"))
-                        (M{ .value = getVal(T, i +% 10, 63) }).divBy(S{ .value = getVal(T, i, 63) })
-                    else if (comptime std.mem.eql(u8, op_name, "scale"))
-                        (M{ .value = getVal(T, i, 63) }).scale(getVal(T, i +% 2, 63))
-                    else
-                        (KM{ .value = getVal(T, i, 15) }).to(M);
-
-                    if (comptime @typeInfo(T) == .float) sink += r.value else sink ^= r.value;
+                    std.mem.doNotOptimizeAway(
+                        {
+                            _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                                (M{ .value = getVal(T, i, 63) }).add(M{ .value = getVal(T, i +% 7, 63) })
+                            else if (comptime std.mem.eql(u8, op_name, "sub"))
+                                (M{ .value = getVal(T, i +% 10, 63) }).sub(M{ .value = getVal(T, i, 63) })
+                            else if (comptime std.mem.eql(u8, op_name, "mulBy"))
+                                (M{ .value = getVal(T, i, 63) }).mulBy(M{ .value = getVal(T, i +% 1, 63) })
+                            else if (comptime std.mem.eql(u8, op_name, "divBy"))
+                                (M{ .value = getVal(T, i +% 10, 63) }).divBy(S{ .value = getVal(T, i, 63) })
+                            else if (comptime std.mem.eql(u8, op_name, "scale"))
+                                (M{ .value = getVal(T, i, 63) }).scale(getVal(T, i +% 2, 63))
+                            else
+                                (KM{ .value = getVal(T, i, 15) }).to(M);
+                        },
+                    );
                 }
 
                 const t_end = getTime();
                 samples[s_idx] = @as(f64, @floatFromInt(t_start.durationTo(t_end).toNanoseconds()));
-                fold(T, &gsink, sink);
             }
 
             const stats = computeStats(&samples, ITERS);
@@ -152,9 +155,6 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
     }
 
     try writer.print("└──────────────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┘\n", .{});
-
-    try writer.print("\nAnti-optimisation sink: {d:.4}\n", .{gsink});
-    try std.testing.expect(gsink != 0);
 }
 
 fn bench_vsNative(writer: *std.Io.Writer) !void {

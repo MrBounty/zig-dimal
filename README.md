@@ -57,6 +57,36 @@ pub fn main() !void {
 
 ---
 
+### Core Arithmetic Operations
+
+Dimensional analysis is handled entirely at compile-time. If the math doesn't make physical sense, it won't compile.
+
+```zig
+const M = units.Base.Meter.Of(f32);
+const S = units.Base.Second.Of(f32);
+
+const dist = M{ .value = 100.0 };
+const time = S{ .value = 5.0 };
+
+// 1. Addition & Subtraction (Must have same dimensions)
+const two_dist = dist.add(dist); // 200.0m
+const zero     = dist.sub(dist); // 0.0m
+
+// 2. Division (Subtracts dimension exponents)
+// Result: Velocity (L¹ T⁻¹)
+const vel = dist.divBy(time); // 20.0 m.s⁻¹
+
+// 3. Multiplication (Adds dimension exponents)
+// Result: Area (L²)
+const area = dist.mulBy(dist); // 100.0 m²
+
+// 4. Chained Operations
+// Result: Acceleration (L¹ T⁻²)
+const accel = dist.divBy(time).divBy(time); // 4.0 m.s⁻²
+```
+
+---
+
 ## Defining Custom Quantities
 
 You aren't limited to the built-in library. You can define any physical quantity by specifying its **Dimensions**
@@ -160,10 +190,10 @@ const new_pos = solar_system_dist.add(ship_nudge);
 ```
 
 ### Integer-Specific Features
-- **Exact Conversions:** When converting between integer scales (e.g., `km` to `m`), the library uses fast-path native multiplication/division.
-- **Round-to-Nearest:** When downscaling integers (e.g., converting `1400mm` to `m`), the library uses native round-to-nearest logic (`val + half / div`) to minimize truncation errors.
-- **Safe Vector Lengths:** `QuantityVec.length()` includes a custom integer square root implementation, allowing you to calculate distances between coordinates without ever casting to a float.
-- **Zero Drift:** Unlike floats, repeated additions and subtractions of integers never accumulate "epsilon" drift, ensuring your simulation remains deterministic.
+ *   **Exact Conversions:** When converting between integer scales (e.g., `km` to `m`), the library uses fast-path native multiplication.
+ *   **Safe Vector Lengths:** `QuantityVec.length()` includes a custom integer square root implementation, allowing you to calculate distances between coordinates without ever casting to a float.
+ *   **Zero Drift:** Unlike floats, repeated additions and subtractions of integers never accumulate "epsilon" drift, ensuring your simulation remains deterministic.
+ *   **Precision-First Scaling:** When operating on two different scales (e.g., adding `km` and `mm`), the result automatically adopts the finer scale (`mm`). This ensures **zero implicit data loss** during calculation. You only lose precision if you *explicitly* choose to convert back to a coarser scale using `.to()`.
 
 ---
 
@@ -199,3 +229,40 @@ const new_pos = solar_system_dist.add(ship_nudge);
 - `N`: Amount (mol)
 - `J`: Intensity (cd)
 
+---
+
+## Testing & Benchmarks
+
+`zig_units` comes with a comprehensive test suite that verifies dimensional correctness, SI prefix scaling,
+and vector math accuracy across all numeric types.
+
+### Running Tests
+To run the full suite of unit tests and performance benchmarks:
+```bash
+zig build test
+```
+
+### Benchmarks
+When you run the tests, the library also executes a performance benchmark.
+This measures the cost of operations (in nanoseconds per operation) across different backing types (`i32` to `f128`) and vector lengths.
+
+Because all dimensional logic is resolved at **compile-time**, you will see that `Quantity` operations perform at the same speed as raw primitive math.
+
+**Example Benchmark Output:**
+```text
+ Quantity<T> benchmark — 100,000 iterations, 10 samples/cell
+
+┌───────────────────┬──────┬─────────────────────┬─────────────────────┐
+│ Operation         │ Type │ ns / op (± delta)   │ Throughput (ops/s)  │
+├───────────────────┼──────┼─────────────────────┼─────────────────────┤
+│ add               │ i32  │     0.18 ns ±0.02   │          5555555556 │
+│ mulBy             │ f64  │     0.22 ns ±0.01   │          4545454545 │
+└───────────────────┴──────┴─────────────────────┴─────────────────────┘
+```
+
+### Verification Examples
+The test suite ensures that:
+- **Dimension Safety:** Chained operations like `dist.divBy(time).divBy(time)` correctly result in an Acceleration type.
+- **Scale Accuracy:** Adding `1km + 1mm` results exactly in `1000001mm` without truncation.
+- **Formatting:** Quantities print correctly with Unicode superscripts (e.g., `9.81m.s⁻²`).
+- **Vector Math:** Euclidean lengths for both floats and integers are verified against known constants.

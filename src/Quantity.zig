@@ -527,3 +527,112 @@ test "Benchmark" {
     std.debug.print("\nAnti-optimisation sink: {d:.4}\n", .{gsink});
     try std.testing.expect(gsink != 0);
 }
+
+test "Overhead Analysis: Quantity vs Native" {
+    const Io = std.Io;
+    const ITERS: usize = 100_000;
+    const SAMPLES: usize = 5;
+    const io = std.testing.io;
+
+    const getTime = struct {
+        fn f(i: Io) Io.Timestamp {
+            return Io.Clock.awake.now(i);
+        }
+    }.f;
+
+    const fold = struct {
+        fn f(comptime TT: type, s: *f64, v: TT) void {
+            s.* += if (comptime @typeInfo(TT) == .float)
+                @as(f64, @floatCast(v))
+            else
+                @as(f64, @floatFromInt(v));
+        }
+    }.f;
+
+    // Helper to safely get a value of type T from a loop index
+    const getValT = struct {
+        fn f(comptime TT: type, i: usize) TT {
+            const v = (i % 100) + 1;
+            return if (comptime @typeInfo(TT) == .float) @floatFromInt(v) else @intCast(v);
+        }
+    }.f;
+
+    const Types = .{ i32, i64, i128, f32, f64 };
+    const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
+    const Ops = .{ "add", "mulBy", "divBy" };
+
+    var gsink: f64 = 0;
+
+    std.debug.print(
+        \\
+        \\ Quantity vs Native Overhead Analysis
+        \\
+        \\┌───────────┬──────┬───────────┬───────────┬───────────┐
+        \\│ Operation │ Type │ Native    │ Quantity  │ Slowdown  │
+        \\├───────────┼──────┼───────────┼───────────┼───────────┤
+        \\
+    , .{});
+
+    inline for (Ops) |op_name| {
+        inline for (Types, 0..) |T, tidx| {
+            var native_total_ns: f64 = 0;
+            var quantity_total_ns: f64 = 0;
+
+            const M = Quantity(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+            const S = Quantity(T, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+
+            for (0..SAMPLES) |_| {
+                // --- 1. Benchmark Native ---
+                var n_sink: T = 0;
+                const n_start = getTime(io);
+                for (0..ITERS) |i| {
+                    const a = getValT(T, i);
+                    const b = getValT(T, 2);
+                    const r = if (comptime std.mem.eql(u8, op_name, "add"))
+                        a + b
+                    else if (comptime std.mem.eql(u8, op_name, "mulBy"))
+                        a * b
+                    else
+                        if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b;
+                    
+                    if (comptime @typeInfo(T) == .float) n_sink += r else n_sink ^= r;
+                }
+                const n_end = getTime(io);
+                native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
+                fold(T, &gsink, n_sink);
+
+                // --- 2. Benchmark Quantity ---
+                var q_sink: T = 0;
+                const q_start = getTime(io);
+                for (0..ITERS) |i| {
+                    const qa = M{ .value = getValT(T, i) };
+                    const qb = if (comptime std.mem.eql(u8, op_name, "divBy")) S{ .value = getValT(T, 2) } else M{ .value = getValT(T, 2) };
+                    
+                    const r = if (comptime std.mem.eql(u8, op_name, "add"))
+                        qa.add(qb)
+                    else if (comptime std.mem.eql(u8, op_name, "mulBy"))
+                        qa.mulBy(qb)
+                    else
+                        qa.divBy(qb);
+
+                    if (comptime @typeInfo(T) == .float) q_sink += r.value else q_sink ^= r.value;
+                }
+                const q_end = getTime(io);
+                quantity_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
+                fold(T, &gsink, q_sink);
+            }
+
+            const avg_n = (native_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
+            const avg_q = (quantity_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
+            const slowdown = avg_q / avg_n;
+
+            std.debug.print("│ {s:<9} │ {s:<4} │ {d:>7.2}ns │ {d:>7.2}ns │ {d:>8.2}x │\n", .{
+                op_name, TNames[tidx], avg_n, avg_q, slowdown,
+            });
+        }
+        std.debug.print("├───────────┼──────┼───────────┼───────────┼───────────┤\n", .{});
+    }
+
+    std.debug.print("└───────────┴──────┴───────────┴───────────┴───────────┘\n", .{});
+    try std.testing.expect(gsink != 0);
+}

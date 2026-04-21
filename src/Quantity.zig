@@ -573,7 +573,7 @@ test "Overhead Analysis: Quantity vs Native" {
         \\
     , .{});
 
-    inline for (Ops) |op_name| {
+    inline for (Ops, 0..) |op_name, j| {
         inline for (Types, 0..) |T, tidx| {
             var native_total_ns: f64 = 0;
             var quantity_total_ns: f64 = 0;
@@ -630,7 +630,7 @@ test "Overhead Analysis: Quantity vs Native" {
                 op_name, TNames[tidx], avg_n, avg_q, slowdown,
             });
         }
-        std.debug.print("├───────────┼──────┼───────────┼───────────┼───────────┤\n", .{});
+       if (j != Ops.len - 1) std.debug.print("├───────────┼──────┼───────────┼───────────┼───────────┤\n", .{});
     }
 
     std.debug.print("└───────────┴──────┴───────────┴───────────┴───────────┘\n", .{});

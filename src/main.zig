@@ -269,20 +269,6 @@ pub fn QuantityVec3(Q: type) type {
             };
         }
 
-        pub fn format(self: Self, writer: *std.Io.Writer) !void {
-            try writer.print("({d:.2}, {d:.2}, {d:.2})", .{ self.x, self.y, self.z });
-            var iter = std.EnumSet(Dimension).initFull().iterator();
-            var first = true;
-            while (iter.next()) |bu| {
-                const v = dims.get(bu);
-                if (v == 0) continue;
-                if (!first) try writer.writeAll(".");
-                first = false;
-                try writer.print("{s}{s}", .{ scales.get(bu).str(), bu.unit() });
-                if (v != 1) try hlp.printSuperscript(writer, v);
-            }
-        }
-
         pub fn lengthSqr(self: Self) T {
             return self.x * self.x + self.y * self.y + self.z * self.z;
         }
@@ -299,6 +285,20 @@ pub fn QuantityVec3(Q: type) type {
                 return @as(T, @intCast(std.math.sqrt(u_len_sq)));
             } else {
                 return @sqrt(len_sq);
+            }
+        }
+
+        pub fn format(self: Self, writer: *std.Io.Writer) !void {
+            try writer.print("({d:.2}, {d:.2}, {d:.2})", .{ self.x, self.y, self.z });
+            var iter = std.EnumSet(Dimension).initFull().iterator();
+            var first = true;
+            while (iter.next()) |bu| {
+                const v = dims.get(bu);
+                if (v == 0) continue;
+                if (!first) try writer.writeAll(".");
+                first = false;
+                try writer.print("{s}{s}", .{ scales.get(bu).str(), bu.unit() });
+                if (v != 1) try hlp.printSuperscript(writer, v);
             }
         }
     };

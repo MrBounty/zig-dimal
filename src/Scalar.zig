@@ -1,25 +1,25 @@
 const std = @import("std");
 const hlp = @import("helper.zig");
 
-const QuantityVec = @import("QuantityVec.zig").QuantityVec;
+const Vector = @import("Vector.zig").Vector;
 const Scales = @import("Scales.zig");
 const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
-pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
+pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
     @setEvalBranchQuota(100_000);
     return struct {
         value: T,
 
         const Self = @This();
-        pub const Vec3: type = QuantityVec(3, Self);
+        pub const Vec3: type = Vector(3, Self);
         pub const ValueType: type = T;
 
         pub const dims: Dimensions = d;
         pub const scales = s;
 
-        pub inline fn add(self: Self, rhs: anytype) Quantity(
+        pub inline fn add(self: Self, rhs: anytype) Scalar(
             T,
             dims,
             scales.min(@TypeOf(rhs).scales),
@@ -29,14 +29,14 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             if (comptime @TypeOf(rhs) == Self)
                 return .{ .value = self.value + rhs.value };
 
-            const TargetType = Quantity(T, dims, scales.min(@TypeOf(rhs).scales));
+            const TargetType = Scalar(T, dims, scales.min(@TypeOf(rhs).scales));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
             return .{ .value = lhs_val + rhs_val };
         }
 
-        pub inline fn sub(self: Self, rhs: anytype) Quantity(
+        pub inline fn sub(self: Self, rhs: anytype) Scalar(
             T,
             dims,
             scales.min(@TypeOf(rhs).scales),
@@ -46,21 +46,21 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             if (comptime @TypeOf(rhs) == Self)
                 return .{ .value = self.value - rhs.value };
 
-            const TargetType = Quantity(T, dims, scales.min(@TypeOf(rhs).scales));
+            const TargetType = Scalar(T, dims, scales.min(@TypeOf(rhs).scales));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
             return .{ .value = lhs_val - rhs_val };
         }
 
-        pub inline fn mulBy(self: Self, rhs: anytype) Quantity(
+        pub inline fn mulBy(self: Self, rhs: anytype) Scalar(
             T,
             dims.add(@TypeOf(rhs).dims),
             scales.min(@TypeOf(rhs).scales),
         ) {
             const RhsType = @TypeOf(rhs);
-            const SelfNorm = Quantity(T, dims, scales.min(RhsType.scales));
-            const RhsNorm = Quantity(T, RhsType.dims, scales.min(RhsType.scales));
+            const SelfNorm = Scalar(T, dims, scales.min(RhsType.scales));
+            const RhsNorm = Scalar(T, RhsType.dims, scales.min(RhsType.scales));
             if (comptime Self == SelfNorm and RhsType == RhsNorm)
                 return .{ .value = self.value * rhs.value };
 
@@ -69,14 +69,14 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             return .{ .value = lhs_val * rhs_val };
         }
 
-        pub inline fn divBy(self: Self, rhs: anytype) Quantity(
+        pub inline fn divBy(self: Self, rhs: anytype) Scalar(
             T,
             dims.sub(@TypeOf(rhs).dims),
             scales.min(@TypeOf(rhs).scales),
         ) {
             const RhsType = @TypeOf(rhs);
-            const SelfNorm = Quantity(T, dims, scales.min(RhsType.scales));
-            const RhsNorm = Quantity(T, RhsType.dims, scales.min(RhsType.scales));
+            const SelfNorm = Scalar(T, dims, scales.min(RhsType.scales));
+            const RhsNorm = Scalar(T, RhsType.dims, scales.min(RhsType.scales));
             const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
             const rhs_val = if (comptime RhsType == RhsNorm) rhs.value else rhs.to(RhsNorm).value;
             if (comptime @typeInfo(T) == .int) {
@@ -132,8 +132,8 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
             }
         }
 
-        pub fn Vec(self: Self, comptime len: comptime_int) QuantityVec(len, Self) {
-            return QuantityVec(len, Self).initDefault(self.value);
+        pub fn Vec(self: Self, comptime len: comptime_int) Vector(len, Self) {
+            return Vector(len, Self).initDefault(self.value);
         }
 
         pub fn vec3(self: Self) Vec3 {
@@ -168,8 +168,8 @@ pub fn Quantity(comptime T: type, comptime d: Dimensions, comptime s: Scales) ty
 }
 
 test "Generate quantity" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = -3 }));
-    const Second = Quantity(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{ .T = .n }));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = -3 }));
+    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{ .T = .n }));
 
     const distance = Meter{ .value = 10 };
     const time = Second{ .value = 2 };
@@ -179,7 +179,7 @@ test "Generate quantity" {
 }
 
 test "Add" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
 
     const distance = Meter{ .value = 10 };
     const distance2 = Meter{ .value = 20 };
@@ -189,7 +189,7 @@ test "Add" {
     try std.testing.expectEqual(1, @TypeOf(added).dims.get(.L));
     std.debug.print("KiloMeter {f} + {f} = {f} OK\n", .{ distance, distance2, added });
 
-    const KiloMeter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const KiloMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
     const distance3 = KiloMeter{ .value = 2 };
     const added2 = distance.add(distance3);
     try std.testing.expectEqual(2010, added2.value);
@@ -201,7 +201,7 @@ test "Add" {
     try std.testing.expectEqual(1, @TypeOf(added3).dims.get(.L));
     std.debug.print("KiloMeter {f} + {f} = {f} OK\n", .{ distance3, distance, added3 });
 
-    const KiloMeter_f = Quantity(f64, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const KiloMeter_f = Scalar(f64, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
     const distance4 = KiloMeter_f{ .value = 2 };
     const added4 = distance4.add(distance).to(KiloMeter_f);
     try std.testing.expectApproxEqAbs(2.01, added4.value, 0.000001);
@@ -210,9 +210,9 @@ test "Add" {
 }
 
 test "Sub" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const KiloMeter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const KiloMeter_f = Quantity(f64, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const KiloMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const KiloMeter_f = Scalar(f64, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
 
     const a = Meter{ .value = 500 };
     const b = Meter{ .value = 200 };
@@ -232,8 +232,8 @@ test "Sub" {
 }
 
 test "MulBy" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Quantity(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
@@ -253,8 +253,8 @@ test "MulBy" {
 }
 
 test "MulBy with scale" {
-    const KiloMeter = Quantity(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const KiloGram = Quantity(f32, Dimensions.init(.{ .M = 1 }), Scales.init(.{ .M = .k }));
+    const KiloMeter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const KiloGram = Scalar(f32, Dimensions.init(.{ .M = 1 }), Scales.init(.{ .M = .k }));
 
     const dist = KiloMeter{ .value = 2.0 };
     const mass = KiloGram{ .value = 3.0 };
@@ -265,10 +265,10 @@ test "MulBy with scale" {
 }
 
 test "MulBy with type change" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const Second = Quantity(f64, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
-    const KmSec = Quantity(i64, Dimensions.init(.{ .L = 1, .T = 1 }), Scales.init(.{ .L = .k }));
-    const KmSec_f = Quantity(f32, Dimensions.init(.{ .L = 1, .T = 1 }), Scales.init(.{ .L = .k }));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const Second = Scalar(f64, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const KmSec = Scalar(i64, Dimensions.init(.{ .L = 1, .T = 1 }), Scales.init(.{ .L = .k }));
+    const KmSec_f = Scalar(f32, Dimensions.init(.{ .L = 1, .T = 1 }), Scales.init(.{ .L = .k }));
 
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
@@ -283,8 +283,8 @@ test "MulBy with type change" {
 }
 
 test "MulBy small" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .n }));
-    const Second = Quantity(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .n }));
+    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
@@ -297,8 +297,8 @@ test "MulBy small" {
 }
 
 test "Scale" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Quantity(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
     const d = Meter{ .value = 7 };
     const scaled = d.scale(3);
@@ -313,8 +313,8 @@ test "Scale" {
 }
 
 test "Chained: velocity and acceleration" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Quantity(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
     const dist = Meter{ .value = 100.0 };
     const t1 = Second{ .value = 5.0 };
@@ -333,8 +333,8 @@ test "Chained: velocity and acceleration" {
 }
 
 test "DivBy integer exact" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Quantity(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
     const dist = Meter{ .value = 120 };
     const time = Second{ .value = 4 };
@@ -347,9 +347,9 @@ test "DivBy integer exact" {
 }
 
 test "Conversion chain: km -> m -> cm" {
-    const KiloMeter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const CentiMeter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .c }));
+    const KiloMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const CentiMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .c }));
 
     const km = KiloMeter{ .value = 15 };
     const m = km.to(Meter);
@@ -361,9 +361,9 @@ test "Conversion chain: km -> m -> cm" {
 }
 
 test "Conversion: hours -> minutes -> seconds" {
-    const Hour = Quantity(i128, Dimensions.init(.{ .T = 1 }), Scales.init(.{ .T = .hour }));
-    const Minute = Quantity(i128, Dimensions.init(.{ .T = 1 }), Scales.init(.{ .T = .min }));
-    const Second = Quantity(i128, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Hour = Scalar(i128, Dimensions.init(.{ .T = 1 }), Scales.init(.{ .T = .hour }));
+    const Minute = Scalar(i128, Dimensions.init(.{ .T = 1 }), Scales.init(.{ .T = .min }));
+    const Second = Scalar(i128, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
     const h = Hour{ .value = 1.0 };
     const min = h.to(Minute);
@@ -375,7 +375,7 @@ test "Conversion: hours -> minutes -> seconds" {
 }
 
 test "Negative values" {
-    const Meter = Quantity(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
 
     const a = Meter{ .value = 5 };
     const b = Meter{ .value = 20 };
@@ -385,12 +385,12 @@ test "Negative values" {
 }
 
 test "Format Quantity" {
-    const MeterPerSecondSq = Quantity(
+    const MeterPerSecondSq = Scalar(
         f32,
         Dimensions.init(.{ .L = 1, .T = -2 }),
         Scales.init(.{ .T = .n }),
     );
-    const KgMeterPerSecond = Quantity(
+    const KgMeterPerSecond = Scalar(
         f32,
         Dimensions.init(.{ .M = 1, .L = 1, .T = -1 }),
         Scales.init(.{ .M = .k }),
@@ -477,9 +477,9 @@ test "Benchmark" {
 
     comptime var tidx: usize = 0;
     inline for (Types, TNames) |T, tname| {
-        const M = Quantity(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-        const KM = Quantity(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-        const S = Quantity(T, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+        const M = Scalar(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+        const KM = Scalar(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+        const S = Scalar(T, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
         inline for (Ops, 0..) |op_name, oidx| {
             var samples: [SAMPLES]f64 = undefined;
@@ -595,8 +595,8 @@ test "Overhead Analysis: Quantity vs Native" {
             var native_total_ns: f64 = 0;
             var quantity_total_ns: f64 = 0;
 
-            const M = Quantity(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-            const S = Quantity(T, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+            const M = Scalar(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+            const S = Scalar(T, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
             for (0..SAMPLES) |_| {
                 // --- 1. Benchmark Native ---
@@ -719,9 +719,9 @@ test "Cross-Type Overhead Analysis: Quantity vs Native" {
                 var native_total_ns: f64 = 0;
                 var quantity_total_ns: f64 = 0;
 
-                const M1 = Quantity(T1, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-                const M2 = Quantity(T2, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-                const S2 = Quantity(T2, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+                const M1 = Scalar(T1, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+                const M2 = Scalar(T2, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+                const S2 = Scalar(T2, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
 
                 for (0..SAMPLES) |_| {
                     // --- 1. Benchmark Native (Cast T2 to T1, then math) ---

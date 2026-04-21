@@ -3,24 +3,24 @@ const std = @import("std");
 // Adjust these imports to match your actual file names
 const Dimensions = @import("Dimensions.zig");
 const Scales = @import("Scales.zig");
-const Quantity = @import("Quantity.zig").Quantity;
+const Scalar = @import("Scalar.zig").Scalar;
 
 /// Helper function to create a clean namespace for each physical dimension.
 /// It exposes the raw dimensions, and easy type-creators for Base or Scaled variants.
-pub fn QtyNamespace(comptime d: anytype) type {
+pub fn BaseScalar(comptime d: anytype) type {
     return struct {
         pub const dims = Dimensions.init(d);
 
-        /// Creates a Quantity of this dimension using default scales.
+        /// Creates a Scalar of this dimension using default scales.
         /// Example: const V = Quantities.Velocity.Base(f32);
         pub fn Of(comptime T: type) type {
-            return Quantity(T, dims, Scales.init(.{}));
+            return Scalar(T, dims, Scales.init(.{}));
         }
 
-        /// Creates a Quantity of this dimension using custom scales.
+        /// Creates a Scalar of this dimension using custom scales.
         /// Example: const Kmh = Quantities.Velocity.Scaled(f32, Scales.init(.{ .L = .k, .T = .hour }));
         pub fn Scaled(comptime T: type, comptime s: Scales) type {
-            return Quantity(T, dims, s);
+            return Scalar(T, dims, s);
         }
     };
 }
@@ -28,70 +28,70 @@ pub fn QtyNamespace(comptime d: anytype) type {
 // ==========================================
 // Base Quantities
 // ==========================================
-pub const Meter = QtyNamespace(.{ .L = 1 });
-pub const Second = QtyNamespace(.{ .T = 1 });
-pub const Gramm = QtyNamespace(.{ .M = 1 });
-pub const Kelvin = QtyNamespace(.{ .Tr = 1 });
-pub const ElectricCurrent = QtyNamespace(.{ .I = 1 });
+pub const Meter = BaseScalar(.{ .L = 1 });
+pub const Second = BaseScalar(.{ .T = 1 });
+pub const Gramm = BaseScalar(.{ .M = 1 });
+pub const Kelvin = BaseScalar(.{ .Tr = 1 });
+pub const ElectricCurrent = BaseScalar(.{ .I = 1 });
 
 // ==========================================
 // Electric
 // ==========================================
-pub const ElectricConductivity = QtyNamespace(.{ .M = -1, .L = -3, .T = 3, .I = 2 });
-pub const ElectricCharge = QtyNamespace(.{ .T = 1, .I = 1 });
-pub const ElectricPotential = QtyNamespace(.{ .T = -3, .L = 2, .M = 1, .I = -1 });
-pub const ElectricResistance = QtyNamespace(.{ .M = 1, .L = 2, .T = -3, .I = -2 });
-pub const ElectricResistivity = QtyNamespace(.{ .M = 1, .L = 3, .T = -3, .I = -2 });
-pub const ElectricCapacitance = QtyNamespace(.{ .T = 4, .L = -2, .M = -1, .I = 2 });
+pub const ElectricConductivity = BaseScalar(.{ .M = -1, .L = -3, .T = 3, .I = 2 });
+pub const ElectricCharge = BaseScalar(.{ .T = 1, .I = 1 });
+pub const ElectricPotential = BaseScalar(.{ .T = -3, .L = 2, .M = 1, .I = -1 });
+pub const ElectricResistance = BaseScalar(.{ .M = 1, .L = 2, .T = -3, .I = -2 });
+pub const ElectricResistivity = BaseScalar(.{ .M = 1, .L = 3, .T = -3, .I = -2 });
+pub const ElectricCapacitance = BaseScalar(.{ .T = 4, .L = -2, .M = -1, .I = 2 });
 pub const ElectricImpedance = ElectricResistance;
-pub const MagneticFlux = QtyNamespace(.{ .M = 1, .L = 2, .T = -2, .I = -1 });
-pub const MagneticDensity = QtyNamespace(.{ .M = 1, .T = -2, .I = -1 });
-pub const MagneticStrength = QtyNamespace(.{ .L = -1, .I = 1 }); // Fixed typo from MagneticStrengh
-pub const MagneticMoment = QtyNamespace(.{ .L = 2, .I = 1 });
+pub const MagneticFlux = BaseScalar(.{ .M = 1, .L = 2, .T = -2, .I = -1 });
+pub const MagneticDensity = BaseScalar(.{ .M = 1, .T = -2, .I = -1 });
+pub const MagneticStrength = BaseScalar(.{ .L = -1, .I = 1 }); // Fixed typo from MagneticStrengh
+pub const MagneticMoment = BaseScalar(.{ .L = 2, .I = 1 });
 
 // ==========================================
 // Movement
 // ==========================================
-pub const Velocity = QtyNamespace(.{ .L = 1, .T = -1 });
-pub const Acceleration = QtyNamespace(.{ .L = 1, .T = -2 });
-pub const Inertia = QtyNamespace(.{ .M = 1, .L = 2 });
+pub const Speed = BaseScalar(.{ .L = 1, .T = -1 });
+pub const Acceleration = BaseScalar(.{ .L = 1, .T = -2 });
+pub const Inertia = BaseScalar(.{ .M = 1, .L = 2 });
 
 // ==========================================
 // Forces / Energy
 // ==========================================
-pub const Force = QtyNamespace(.{ .T = -2, .M = 1, .L = 1 });
-pub const Pressure = QtyNamespace(.{ .T = -2, .L = -1, .M = 1 });
-pub const Energy = QtyNamespace(.{ .T = -2, .L = 2, .M = 1 });
-pub const Power = QtyNamespace(.{ .T = -3, .L = 2, .M = 1 });
+pub const Force = BaseScalar(.{ .T = -2, .M = 1, .L = 1 });
+pub const Pressure = BaseScalar(.{ .T = -2, .L = -1, .M = 1 });
+pub const Energy = BaseScalar(.{ .T = -2, .L = 2, .M = 1 });
+pub const Power = BaseScalar(.{ .T = -3, .L = 2, .M = 1 });
 
 // ==========================================
 // Dimension
 // ==========================================
-pub const Area = QtyNamespace(.{ .L = 2 });
-pub const Volume = QtyNamespace(.{ .L = 3 });
-pub const AreaDensity = QtyNamespace(.{ .M = 1, .L = -2 });
-pub const Density = QtyNamespace(.{ .M = 1, .L = -3 });
+pub const Area = BaseScalar(.{ .L = 2 });
+pub const Volume = BaseScalar(.{ .L = 3 });
+pub const AreaDensity = BaseScalar(.{ .M = 1, .L = -2 });
+pub const Density = BaseScalar(.{ .M = 1, .L = -3 });
 
 // ==========================================
 // Thermal
 // ==========================================
 pub const ThermalHeat = Energy;
 pub const ThermalWork = Energy;
-pub const ThermalCapacity = QtyNamespace(.{ .M = 1, .L = 2, .T = -2, .Tr = -1 });
-pub const ThermalCapacityPerMass = QtyNamespace(.{ .L = 2, .T = -2, .Tr = -1 });
-pub const ThermalFluxDensity = QtyNamespace(.{ .M = 1, .T = -3 }); // Fixed typo from ThermalluxDensity
-pub const ThermalConductance = QtyNamespace(.{ .M = 1, .L = 2, .T = -3, .Tr = -1 });
-pub const ThermalConductivity = QtyNamespace(.{ .M = 1, .L = 1, .T = -3, .Tr = -1 });
-pub const ThermalResistance = QtyNamespace(.{ .M = -1, .L = -2, .T = 3, .Tr = 1 });
-pub const ThermalResistivity = QtyNamespace(.{ .M = -1, .L = -1, .T = 3, .Tr = 1 });
-pub const ThermalEntropy = QtyNamespace(.{ .M = 1, .L = 2, .T = -2, .Tr = -1 });
+pub const ThermalCapacity = BaseScalar(.{ .M = 1, .L = 2, .T = -2, .Tr = -1 });
+pub const ThermalCapacityPerMass = BaseScalar(.{ .L = 2, .T = -2, .Tr = -1 });
+pub const ThermalFluxDensity = BaseScalar(.{ .M = 1, .T = -3 }); // Fixed typo from ThermalluxDensity
+pub const ThermalConductance = BaseScalar(.{ .M = 1, .L = 2, .T = -3, .Tr = -1 });
+pub const ThermalConductivity = BaseScalar(.{ .M = 1, .L = 1, .T = -3, .Tr = -1 });
+pub const ThermalResistance = BaseScalar(.{ .M = -1, .L = -2, .T = 3, .Tr = 1 });
+pub const ThermalResistivity = BaseScalar(.{ .M = -1, .L = -1, .T = 3, .Tr = 1 });
+pub const ThermalEntropy = BaseScalar(.{ .M = 1, .L = 2, .T = -2, .Tr = -1 });
 
 // ==========================================
 // Others
 // ==========================================
-pub const Frequency = QtyNamespace(.{ .T = -1 });
-pub const Viscosity = QtyNamespace(.{ .M = 1, .L = -1, .T = -1 });
-pub const SurfaceTension = QtyNamespace(.{ .M = 1, .T = -2 }); // Corrected from MT-2a
+pub const Frequency = BaseScalar(.{ .T = -1 });
+pub const Viscosity = BaseScalar(.{ .M = 1, .L = -1, .T = -1 });
+pub const SurfaceTension = BaseScalar(.{ .M = 1, .T = -2 }); // Corrected from MT-2a
 
 test "BaseQuantities - Core dimensions instantiation" {
     // Basic types via generic wrappers
@@ -102,7 +102,7 @@ test "BaseQuantities - Core dimensions instantiation" {
     try std.testing.expectEqual(0, M.dims.get(.T));
 
     // Test specific scale variants
-    const Kmh = Velocity.Scaled(f32, Scales.init(.{ .L = .k, .T = .hour }));
+    const Kmh = Speed.Scaled(f32, Scales.init(.{ .L = .k, .T = .hour }));
     const speed = Kmh{ .value = 120.0 };
     try std.testing.expectEqual(120.0, speed.value);
     try std.testing.expectEqual(.k, @TypeOf(speed).scales.get(.L));
@@ -116,7 +116,7 @@ test "BaseQuantities - Kinematics equations" {
     // Velocity = Distance / Time
     const v = d.divBy(t);
     try std.testing.expectEqual(25.0, v.value);
-    try std.testing.expect(Velocity.dims.eql(@TypeOf(v).dims));
+    try std.testing.expect(Speed.dims.eql(@TypeOf(v).dims));
 
     // Acceleration = Velocity / Time
     const a = v.divBy(t);

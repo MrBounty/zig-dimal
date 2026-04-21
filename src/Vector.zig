@@ -1,13 +1,13 @@
 const std = @import("std");
 const hlp = @import("helper.zig");
 
-const Quantity = @import("Quantity.zig").Quantity;
+const Scalar = @import("Scalar.zig").Scalar;
 const Scales = @import("Scales.zig");
 const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
-pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
+pub fn Vector(comptime len: usize, comptime Q: type) type {
     const T = Q.ValueType;
     const d: Dimensions = Q.dims;
     const s: Scales = Q.scales;
@@ -16,7 +16,7 @@ pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
         data: [len]T,
 
         const Self = @This();
-        pub const QuantityType = Q;
+        pub const ScalarType = Q;
         pub const ValueType = T;
         pub const dims: Dimensions = d;
         pub const scales = s;
@@ -30,21 +30,21 @@ pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
             return .{ .data = data };
         }
 
-        pub fn add(self: Self, rhs: anytype) QuantityVec(len, Quantity(T, d, s.min(@TypeOf(rhs).scales))) {
+        pub fn add(self: Self, rhs: anytype) Vector(len, Scalar(T, d, s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
-            var res: QuantityVec(len, Quantity(T, d, s.min(Tr.scales))) = undefined;
+            var res: Vector(len, Scalar(T, d, s.min(Tr.scales))) = undefined;
             for (self.data, 0..) |v, i| {
-                const q = (Q{ .value = v }).add(Tr.QuantityType{ .value = rhs.data[i] });
+                const q = (Q{ .value = v }).add(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
         }
 
-        pub fn sub(self: Self, rhs: anytype) QuantityVec(len, Quantity(T, d, s.min(@TypeOf(rhs).scales))) {
+        pub fn sub(self: Self, rhs: anytype) Vector(len, Scalar(T, d, s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
-            var res: QuantityVec(len, Quantity(T, d, s.min(Tr.scales))) = undefined;
+            var res: Vector(len, Scalar(T, d, s.min(Tr.scales))) = undefined;
             for (self.data, 0..) |v, i| {
-                const q = (Q{ .value = v }).sub(Tr.QuantityType{ .value = rhs.data[i] });
+                const q = (Q{ .value = v }).sub(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
@@ -53,11 +53,11 @@ pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
         pub fn divBy(
             self: Self,
             rhs: anytype,
-        ) QuantityVec(len, Quantity(T, d.sub(@TypeOf(rhs).dims), s.min(@TypeOf(rhs).scales))) {
+        ) Vector(len, Scalar(T, d.sub(@TypeOf(rhs).dims), s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
-            var res: QuantityVec(len, Quantity(T, d.sub(Tr.dims), s.min(Tr.scales))) = undefined;
+            var res: Vector(len, Scalar(T, d.sub(Tr.dims), s.min(Tr.scales))) = undefined;
             for (self.data, 0..) |v, i| {
-                const q = (Q{ .value = v }).divBy(Tr.QuantityType{ .value = rhs.data[i] });
+                const q = (Q{ .value = v }).divBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
@@ -66,11 +66,11 @@ pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
         pub fn mulBy(
             self: Self,
             rhs: anytype,
-        ) QuantityVec(len, Quantity(T, d.add(@TypeOf(rhs).dims), s.min(@TypeOf(rhs).scales))) {
+        ) Vector(len, Scalar(T, d.add(@TypeOf(rhs).dims), s.min(@TypeOf(rhs).scales))) {
             const Tr = @TypeOf(rhs);
-            var res: QuantityVec(len, Quantity(T, d.add(Tr.dims), s.min(Tr.scales))) = undefined;
+            var res: Vector(len, Scalar(T, d.add(Tr.dims), s.min(Tr.scales))) = undefined;
             for (self.data, 0..) |v, i| {
-                const q = (Q{ .value = v }).mulBy(Tr.QuantityType{ .value = rhs.data[i] });
+                const q = (Q{ .value = v }).mulBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
@@ -79,8 +79,8 @@ pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
         pub fn divByScalar(
             self: Self,
             scalar: anytype,
-        ) QuantityVec(len, Quantity(T, d.sub(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) {
-            var res: QuantityVec(len, Quantity(T, d.sub(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) = undefined;
+        ) Vector(len, Scalar(T, d.sub(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) {
+            var res: Vector(len, Scalar(T, d.sub(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) = undefined;
             for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.divBy(scalar).value;
@@ -91,8 +91,8 @@ pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
         pub fn mulByScalar(
             self: Self,
             scalar: anytype,
-        ) QuantityVec(len, Quantity(T, d.add(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) {
-            var res: QuantityVec(len, Quantity(T, d.add(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) = undefined;
+        ) Vector(len, Scalar(T, d.add(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) {
+            var res: Vector(len, Scalar(T, d.add(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) = undefined;
             for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.mulBy(scalar).value;
@@ -116,8 +116,8 @@ pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
-        pub fn to(self: Self, comptime DestQ: type) QuantityVec(len, DestQ) {
-            var res: QuantityVec(len, DestQ) = undefined;
+        pub fn to(self: Self, comptime DestQ: type) Vector(len, DestQ) {
+            var res: Vector(len, DestQ) = undefined;
             for (self.data, 0..) |v, i| {
                 res.data[i] = (Q{ .value = v }).to(DestQ).value;
             }
@@ -168,12 +168,12 @@ pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
 }
 
 test "Format VectorX" {
-    const MeterPerSecondSq = Quantity(
+    const MeterPerSecondSq = Scalar(
         f32,
         Dimensions.init(.{ .L = 1, .T = -2 }),
         Scales.init(.{ .T = .n }),
     );
-    const KgMeterPerSecond = Quantity(
+    const KgMeterPerSecond = Scalar(
         f32,
         Dimensions.init(.{ .M = 1, .L = 1, .T = -1 }),
         Scales.init(.{ .M = .k }),
@@ -187,7 +187,7 @@ test "Format VectorX" {
 }
 
 test "VecX Init and Basic Arithmetic" {
-    const Meter = Quantity(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
     const Vec3M = Meter.Vec3;
 
     // Test zero, one, initDefault
@@ -228,14 +228,14 @@ test "VecX Init and Basic Arithmetic" {
 }
 
 test "VecX Kinematics (Scalar Mul/Div)" {
-    const Meter = Quantity(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Quantity(i32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Second = Scalar(i32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
     const Vec3M = Meter.Vec3;
 
     const pos = Vec3M{ .data = .{ 100, 200, 300 } };
     const time = Second{ .value = 10 };
 
-    // Vector divided by scalar Quantity (Velocity = Position / Time)
+    // Vector divided by scalar (Velocity = Position / Time)
     const vel = pos.divByScalar(time);
     try std.testing.expectEqual(10, vel.data[0]);
     try std.testing.expectEqual(20, vel.data[1]);
@@ -243,7 +243,7 @@ test "VecX Kinematics (Scalar Mul/Div)" {
     try std.testing.expectEqual(1, @TypeOf(vel).dims.get(.L));
     try std.testing.expectEqual(-1, @TypeOf(vel).dims.get(.T));
 
-    // Vector multiplied by scalar Quantity (Position = Velocity * Time)
+    // Vector multiplied by scalar (Position = Velocity * Time)
     const new_pos = vel.mulByScalar(time);
     try std.testing.expectEqual(100, new_pos.data[0]);
     try std.testing.expectEqual(200, new_pos.data[1]);
@@ -253,7 +253,7 @@ test "VecX Kinematics (Scalar Mul/Div)" {
 }
 
 test "VecX Element-wise Math and Scaling" {
-    const Meter = Quantity(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
     const Vec3M = Meter.Vec3;
 
     const v1 = Vec3M{ .data = .{ 10, 20, 30 } };
@@ -274,8 +274,8 @@ test "VecX Element-wise Math and Scaling" {
 }
 
 test "VecX Conversions" {
-    const KiloMeter = Quantity(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const Meter = Quantity(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const KiloMeter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const Meter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
 
     const v_km = KiloMeter.Vec3{ .data = .{ 1, 2, 3 } };
     const v_m = v_km.to(Meter);
@@ -290,8 +290,8 @@ test "VecX Conversions" {
 }
 
 test "VecX Length" {
-    const MeterInt = Quantity(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const MeterFloat = Quantity(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const MeterInt = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const MeterFloat = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
 
     // Integer length (using your custom isqrt)
     // 3-4-5 triangle on XY plane
@@ -305,7 +305,7 @@ test "VecX Length" {
     try std.testing.expectApproxEqAbs(@as(f32, 5.0), v_float.length(), 1e-4);
 }
 
-test "Benchmark QuantityVec ops" {
+test "Benchmark Vector ops" {
     const Io = std.Io;
     const ITERS: usize = 10_000;
     const SAMPLES: usize = 10;
@@ -350,7 +350,7 @@ test "Benchmark QuantityVec ops" {
 
     std.debug.print(
         \\
-        \\ QuantityVec<N, T> benchmark — {d} iterations, {d} samples/cell
+        \\ Vector<N, T> benchmark — {d} iterations, {d} samples/cell
         \\ (Results in ns/op)
         \\
         \\┌─────────────┬──────┬─────────┬─────────┬─────────┐
@@ -369,9 +369,9 @@ test "Benchmark QuantityVec ops" {
             std.debug.print("│ {s:<11} │ {s:<4} │", .{ op_name, tname });
 
             inline for (Lengths) |len| {
-                const Q_base = Quantity(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-                const Q_time = Quantity(T, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
-                const V = QuantityVec(len, Q_base);
+                const Q_base = Scalar(T, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+                const Q_time = Scalar(T, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+                const V = Vector(len, Q_base);
 
                 var samples: [SAMPLES]f64 = undefined;
 

@@ -25,6 +25,8 @@ pub fn BaseScalar(comptime d: anytype) type {
     };
 }
 
+pub const Dimless = BaseScalar(.{});
+
 // ==========================================
 // Base Quantities
 // ==========================================

@@ -140,11 +140,21 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             return Vec3.initDefault(self.value);
         }
 
-        pub fn format(
+        pub fn formatNumber(
             self: Self,
             writer: *std.Io.Writer,
+            options: std.fmt.Number,
         ) !void {
-            try writer.print("{d}", .{self.value});
+            switch (@typeInfo(T)) {
+                .float, .comptime_float => try writer.printFloat(self.value, options),
+                .int, .comptime_int => try writer.printInt(self.value, 10, .lower, .{
+                    .width = options.width,
+                    .alignment = options.alignment,
+                    .fill = options.fill,
+                    .precision = options.precision,
+                }),
+                else => unreachable,
+            }
             var first = true;
             inline for (std.enums.values(Dimension)) |bu| {
                 const v = dims.get(bu);
@@ -187,26 +197,26 @@ test "Add" {
     const added = distance.add(distance2);
     try std.testing.expectEqual(30, added.value);
     try std.testing.expectEqual(1, @TypeOf(added).dims.get(.L));
-    std.debug.print("KiloMeter {f} + {f} = {f} OK\n", .{ distance, distance2, added });
+    std.debug.print("KiloMeter {d} + {d} = {d} OK\n", .{ distance, distance2, added });
 
     const KiloMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
     const distance3 = KiloMeter{ .value = 2 };
     const added2 = distance.add(distance3);
     try std.testing.expectEqual(2010, added2.value);
     try std.testing.expectEqual(1, @TypeOf(added2).dims.get(.L));
-    std.debug.print("KiloMeter {f} + {f} = {f} OK\n", .{ distance, distance3, added2 });
+    std.debug.print("KiloMeter {d} + {d} = {d} OK\n", .{ distance, distance3, added2 });
 
     const added3 = distance3.add(distance).to(KiloMeter);
     try std.testing.expectEqual(2, added3.value);
     try std.testing.expectEqual(1, @TypeOf(added3).dims.get(.L));
-    std.debug.print("KiloMeter {f} + {f} = {f} OK\n", .{ distance3, distance, added3 });
+    std.debug.print("KiloMeter {d} + {d} = {d} OK\n", .{ distance3, distance, added3 });
 
     const KiloMeter_f = Scalar(f64, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
     const distance4 = KiloMeter_f{ .value = 2 };
     const added4 = distance4.add(distance).to(KiloMeter_f);
     try std.testing.expectApproxEqAbs(2.01, added4.value, 0.000001);
     try std.testing.expectEqual(1, @TypeOf(added4).dims.get(.L));
-    std.debug.print("KiloMeter_f {f} + {f} = {f} OK\n", .{ distance4, distance, added4 });
+    std.debug.print("KiloMeter_f {d} + {d} = {d:.2} OK\n", .{ distance4, distance, added4 });
 }
 
 test "Sub" {
@@ -218,17 +228,17 @@ test "Sub" {
     const b = Meter{ .value = 200 };
     const diff = a.sub(b);
     try std.testing.expectEqual(300, diff.value);
-    std.debug.print("Sub: {f} - {f} = {f} OK\n", .{ a, b, diff });
+    std.debug.print("Sub: {d} - {d} = {d} OK\n", .{ a, b, diff });
 
     const km = KiloMeter{ .value = 1 };
     const diff2 = a.sub(km);
-    std.debug.print("Sub cross-scale: {f} - {f} = {f}\n", .{ a, km, diff2 });
+    std.debug.print("Sub cross-scale: {d} - {d} = {d}\n", .{ a, km, diff2 });
 
     const km_f = KiloMeter_f{ .value = 2.5 };
     const m_f = Meter{ .value = 500 };
     const diff3 = km_f.sub(m_f);
     try std.testing.expectApproxEqAbs(2000, diff3.value, 1e-4);
-    std.debug.print("Sub float cross-scale: {f} - {f} = {f} OK\n", .{ km_f, m_f, diff3 });
+    std.debug.print("Sub float cross-scale: {d} - {d} = {d} OK\n", .{ km_f, m_f, diff3 });
 }
 
 test "MulBy" {
@@ -242,14 +252,14 @@ test "MulBy" {
     try std.testing.expectEqual(12, area_time.value);
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.L));
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.T));
-    std.debug.print("MulBy: {f} * {f} = {f} OK\n", .{ d, t, area_time });
+    std.debug.print("MulBy: {d} * {d} = {d} OK\n", .{ d, t, area_time });
 
     const d2 = Meter{ .value = 5.0 };
     const area = d.mulBy(d2);
     try std.testing.expectEqual(15, area.value);
     try std.testing.expectEqual(2, @TypeOf(area).dims.get(.L));
     try std.testing.expectEqual(0, @TypeOf(area).dims.get(.T));
-    std.debug.print("MulBy: {f} * {f} = {f} OK\n", .{ d, d2, area });
+    std.debug.print("MulBy: {d} * {d} = {d} OK\n", .{ d, d2, area });
 }
 
 test "MulBy with scale" {
@@ -261,7 +271,7 @@ test "MulBy with scale" {
     const prod = dist.mulBy(mass);
     try std.testing.expectEqual(1, @TypeOf(prod).dims.get(.L));
     try std.testing.expectEqual(1, @TypeOf(prod).dims.get(.M));
-    std.debug.print("MulBy scaled: {f} * {f} = {f} OK\n", .{ dist, mass, prod });
+    std.debug.print("MulBy scaled: {d} * {d} = {d} OK\n", .{ dist, mass, prod });
 }
 
 test "MulBy with type change" {
@@ -279,7 +289,7 @@ test "MulBy with type change" {
     try std.testing.expectApproxEqAbs(12, area_time_f.value, 0.0001);
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.L));
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.T));
-    std.debug.print("MulBy: {f} * {f} = {f} OK\n", .{ d, t, area_time });
+    std.debug.print("MulBy: {d} * {d} = {d} OK\n", .{ d, t, area_time });
 }
 
 test "MulBy small" {
@@ -293,7 +303,7 @@ test "MulBy small" {
     try std.testing.expectEqual(12, area_time.value);
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.L));
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.T));
-    std.debug.print("MulBy: {f} * {f} = {f} OK\n", .{ d, t, area_time });
+    std.debug.print("MulBy: {d} * {d} = {d} OK\n", .{ d, t, area_time });
 }
 
 test "Scale" {
@@ -304,12 +314,12 @@ test "Scale" {
     const scaled = d.scale(3);
     try std.testing.expectEqual(21, scaled.value);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
-    std.debug.print("Scale int: {f} * 3 = {f} OK\n", .{ d, scaled });
+    std.debug.print("Scale int: {d} * 3 = {d} OK\n", .{ d, scaled });
 
     const t = Second{ .value = 1.5 };
     const scaled_f = t.scale(4.0);
     try std.testing.expectApproxEqAbs(@as(f32, 6.0), scaled_f.value, 1e-4);
-    std.debug.print("Scale float: {f} * 4 = {f} OK\n", .{ t, scaled_f });
+    std.debug.print("Scale float: {d} * 4 = {d} OK\n", .{ t, scaled_f });
 }
 
 test "Chained: velocity and acceleration" {
@@ -329,7 +339,7 @@ test "Chained: velocity and acceleration" {
     try std.testing.expectEqual(1, @TypeOf(accel).dims.get(.L));
     try std.testing.expectEqual(-2, @TypeOf(accel).dims.get(.T));
 
-    std.debug.print("Velocity: {f}, Acceleration: {f} OK\n", .{ velocity, accel });
+    std.debug.print("Velocity: {d}, Acceleration: {d} OK\n", .{ velocity, accel });
 }
 
 test "DivBy integer exact" {
@@ -343,7 +353,7 @@ test "DivBy integer exact" {
     try std.testing.expectEqual(30, vel.value);
     try std.testing.expectEqual(1, @TypeOf(vel).dims.get(.L));
     try std.testing.expectEqual(-1, @TypeOf(vel).dims.get(.T));
-    std.debug.print("DivBy int: {f} / {f} = {f} OK\n", .{ dist, time, vel });
+    std.debug.print("DivBy int: {d} / {d} = {d} OK\n", .{ dist, time, vel });
 }
 
 test "Conversion chain: km -> m -> cm" {
@@ -357,7 +367,7 @@ test "Conversion chain: km -> m -> cm" {
 
     try std.testing.expectEqual(15_000, m.value);
     try std.testing.expectEqual(1_500_000, cm.value);
-    std.debug.print("Chain: {f} -> {f} -> {f} OK\n", .{ km, m, cm });
+    std.debug.print("Chain: {d} -> {d} -> {d} OK\n", .{ km, m, cm });
 }
 
 test "Conversion: hours -> minutes -> seconds" {
@@ -371,7 +381,7 @@ test "Conversion: hours -> minutes -> seconds" {
 
     try std.testing.expectEqual(60, min.value);
     try std.testing.expectEqual(3600, sec.value);
-    std.debug.print("Time chain: {f} -> {f} -> {f} OK\n", .{ h, min, sec });
+    std.debug.print("Time chain: {d} -> {d} -> {d} OK\n", .{ h, min, sec });
 }
 
 test "Negative values" {
@@ -381,10 +391,10 @@ test "Negative values" {
     const b = Meter{ .value = 20 };
     const diff = a.sub(b);
     try std.testing.expectEqual(-15, diff.value);
-    std.debug.print("Negative sub: {f} - {f} = {f} OK\n", .{ a, b, diff });
+    std.debug.print("Negative sub: {d} - {d} = {d} OK\n", .{ a, b, diff });
 }
 
-test "Format Quantity" {
+test "Format Scalar" {
     const MeterPerSecondSq = Scalar(
         f32,
         Dimensions.init(.{ .L = 1, .T = -2 }),
@@ -399,8 +409,8 @@ test "Format Quantity" {
     const accel = MeterPerSecondSq{ .value = 9.81 };
     const momentum = KgMeterPerSecond{ .value = 42.0 };
 
-    std.debug.print("Acceleration: {f}\n", .{accel});
-    std.debug.print("Momentum: {f}\n", .{momentum});
+    std.debug.print("Acceleration: {d}\n", .{accel});
+    std.debug.print("Momentum: {d}\n", .{momentum});
 }
 
 test "Benchmark Scalar" {
@@ -461,7 +471,7 @@ test "Benchmark Scalar" {
 
     std.debug.print(
         \\
-        \\ Quantity<T> benchmark — {d} iterations, {d} samples/cell
+        \\ Scalar<T> benchmark — {d} iterations, {d} samples/cell
         \\
         \\┌───────────────────┬──────┬─────────────────────┬─────────────────────┐
         \\│ Operation         │ Type │ ns / op (± delta)   │ Throughput (ops/s)  │
@@ -545,7 +555,7 @@ test "Benchmark Scalar" {
     try std.testing.expect(gsink != 0);
 }
 
-test "Overhead Analysis: Quantity vs Native" {
+test "Overhead Analysis: Scalar vs Native" {
     const Io = std.Io;
     const ITERS: usize = 100_000;
     const SAMPLES: usize = 5;
@@ -582,10 +592,10 @@ test "Overhead Analysis: Quantity vs Native" {
 
     std.debug.print(
         \\
-        \\ Quantity vs Native Overhead Analysis
+        \\ Scalar vs Native Overhead Analysis
         \\
         \\┌───────────┬──────┬───────────┬───────────┬───────────┐
-        \\│ Operation │ Type │ Native    │ Quantity  │ Slowdown  │
+        \\│ Operation │ Type │ Native    │ Scalar    │ Slowdown  │
         \\├───────────┼──────┼───────────┼───────────┼───────────┤
         \\
     , .{});
@@ -617,7 +627,7 @@ test "Overhead Analysis: Quantity vs Native" {
                 native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
                 fold(T, &gsink, n_sink);
 
-                // --- 2. Benchmark Quantity ---
+                // --- 2. Benchmark Scalar ---
                 var q_sink: T = 0;
                 const q_start = getTime(io);
                 for (0..ITERS) |i| {
@@ -653,7 +663,7 @@ test "Overhead Analysis: Quantity vs Native" {
     try std.testing.expect(gsink != 0);
 }
 
-test "Cross-Type Overhead Analysis: Quantity vs Native" {
+test "Cross-Type Overhead Analysis: Scalar vs Native" {
     const Io = std.Io;
     const ITERS: usize = 100_000;
     const SAMPLES: usize = 5;
@@ -705,10 +715,10 @@ test "Cross-Type Overhead Analysis: Quantity vs Native" {
 
     std.debug.print(
         \\
-        \\ Cross-Type Overhead Analysis: Quantity vs Native
+        \\ Cross-Type Overhead Analysis: Scalar vs Native
         \\
         \\┌─────────┬──────┬──────┬───────────┬───────────┬───────────┐
-        \\│ Op      │ T1   │ T2   │ Native    │ Quantity  │ Slowdown  │
+        \\│ Op      │ T1   │ T2   │ Native    │ Scalar    │ Slowdown  │
         \\├─────────┼──────┼──────┼───────────┼───────────┼───────────┤
         \\
     , .{});
@@ -747,7 +757,7 @@ test "Cross-Type Overhead Analysis: Quantity vs Native" {
                     native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
                     fold(T1, &gsink, n_sink);
 
-                    // --- 2. Benchmark Quantity ---
+                    // --- 2. Benchmark Scalar ---
                     var q_sink: T1 = 0;
                     const q_start = getTime(io);
                     for (0..ITERS) |i| {

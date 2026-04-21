@@ -147,21 +147,43 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             }
         }
 
-        pub fn format(self: Self, writer: *std.Io.Writer) !void {
+        pub fn formatNumber(
+            self: Self,
+            writer: *std.Io.Writer,
+            options: std.fmt.Number,
+        ) !void {
             try writer.writeAll("(");
             for (self.data, 0..) |v, i| {
                 if (i > 0) try writer.writeAll(", ");
-                try writer.print("{d:.2}", .{v});
+                switch (@typeInfo(T)) {
+                    .float, .comptime_float => try writer.printFloat(v, options),
+                    .int, .comptime_int => try writer.printInt(v, 10, .lower, .{
+                        .width = options.width,
+                        .alignment = options.alignment,
+                        .fill = options.fill,
+                        .precision = options.precision,
+                    }),
+                    else => unreachable,
+                }
             }
             try writer.writeAll(")");
             var first = true;
             inline for (std.enums.values(Dimension)) |bu| {
                 const v = dims.get(bu);
-                if (v == 0) continue;
-                if (!first) try writer.writeAll(".");
+                if (comptime v == 0) continue;
+                if (!first)
+                    try writer.writeAll(".");
+
                 first = false;
-                try writer.print("{s}{s}", .{ scales.get(bu).str(), bu.unit() });
-                if (v != 1) try hlp.printSuperscript(writer, v);
+
+                const uscale = scales.get(bu);
+                if (bu == .T and (uscale == .min or uscale == .hour or uscale == .year))
+                    try writer.print("{s}", .{uscale.str()})
+                else
+                    try writer.print("{s}{s}", .{ uscale.str(), bu.unit() });
+
+                if (v != 1)
+                    try hlp.printSuperscript(writer, v);
             }
         }
     };
@@ -182,8 +204,8 @@ test "Format VectorX" {
     const accel = MeterPerSecondSq.Vec3.initDefault(9.81);
     const momentum = KgMeterPerSecond.Vec3{ .data = .{ 43, 0, 11 } };
 
-    std.debug.print("Acceleration: {f}\n", .{accel});
-    std.debug.print("Momentum: {f}\n", .{momentum});
+    std.debug.print("Acceleration: {d}\n", .{accel});
+    std.debug.print("Momentum: {d:.2}\n", .{momentum});
 }
 
 test "VecX Init and Basic Arithmetic" {

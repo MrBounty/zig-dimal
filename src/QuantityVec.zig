@@ -154,9 +154,8 @@ pub fn QuantityVec(comptime len: usize, comptime Q: type) type {
                 try writer.print("{d:.2}", .{v});
             }
             try writer.writeAll(")");
-            var iter = std.EnumSet(Dimension).initFull().iterator();
             var first = true;
-            while (iter.next()) |bu| {
+            inline for (std.enums.values(Dimension)) |bu| {
                 const v = dims.get(bu);
                 if (v == 0) continue;
                 if (!first) try writer.writeAll(".");

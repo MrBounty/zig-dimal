@@ -33,24 +33,24 @@ pub const Dimension = enum {
 
 const Self = @This();
 
-data: std.EnumArray(Dimension, i8),
+data: std.EnumArray(Dimension, comptime_int),
 
 pub fn init(comptime init_val: anytype) Self {
-    var s = Self{ .data = std.EnumArray(Dimension, i8).initFill(0) };
+    var s = Self{ .data = std.EnumArray(Dimension, comptime_int).initFill(0) };
     inline for (std.meta.fields(@TypeOf(init_val))) |f|
         s.data.set(@field(Dimension, f.name), @field(init_val, f.name));
     return s;
 }
 
-pub fn initFill(val: i8) Self {
-    return .{ .data = std.EnumArray(Dimension, i8).initFill(val) };
+pub fn initFill(comptime val: comptime_int) Self {
+    return .{ .data = std.EnumArray(Dimension, comptime_int).initFill(val) };
 }
 
-pub fn get(self: Self, key: Dimension) i8 {
+pub fn get(comptime self: Self, comptime key: Dimension) comptime_int {
     return self.data.get(key);
 }
 
-pub fn set(self: *Self, key: Dimension, val: i8) void {
+pub fn set(comptime self: *Self, comptime key: Dimension, comptime val: i8) void {
     self.data.set(key, val);
 }
 
@@ -64,13 +64,13 @@ pub fn add(comptime a: Self, comptime b: Self) Self {
 pub fn sub(comptime a: Self, comptime b: Self) Self {
     @setEvalBranchQuota(10_000);
     var result = Self.initFill(0);
-    for (std.enums.values(Dimension)) |d|
+    inline for (std.enums.values(Dimension)) |d|
         result.set(d, a.get(d) - b.get(d));
     return result;
 }
 
 pub fn eql(comptime a: Self, comptime b: Self) bool {
-    for (std.enums.values(Dimension)) |d|
+    inline for (std.enums.values(Dimension)) |d|
         if (a.get(d) != b.get(d)) return false;
     return true;
 }

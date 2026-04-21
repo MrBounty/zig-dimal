@@ -127,11 +127,10 @@ pub fn Quantity(T: type, d: Dimensions, s: Scales) type {
             writer: *std.Io.Writer,
         ) !void {
             try writer.print("{d}", .{self.value});
-            var iter = std.EnumSet(Dimension).initFull().iterator();
             var first = true;
-            while (iter.next()) |bu| {
+            inline for (std.enums.values(Dimension)) |bu| {
                 const v = dims.get(bu);
-                if (v == 0) continue;
+                if (comptime v == 0) continue;
                 if (!first)
                     try writer.writeAll(".");
 
@@ -592,9 +591,8 @@ test "Overhead Analysis: Quantity vs Native" {
                         a + b
                     else if (comptime std.mem.eql(u8, op_name, "mulBy"))
                         a * b
-                    else
-                        if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b;
-                    
+                    else if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b;
+
                     if (comptime @typeInfo(T) == .float) n_sink += r else n_sink ^= r;
                 }
                 const n_end = getTime(io);
@@ -607,7 +605,7 @@ test "Overhead Analysis: Quantity vs Native" {
                 for (0..ITERS) |i| {
                     const qa = M{ .value = getValT(T, i) };
                     const qb = if (comptime std.mem.eql(u8, op_name, "divBy")) S{ .value = getValT(T, 2) } else M{ .value = getValT(T, 2) };
-                    
+
                     const r = if (comptime std.mem.eql(u8, op_name, "add"))
                         qa.add(qb)
                     else if (comptime std.mem.eql(u8, op_name, "mulBy"))
@@ -630,7 +628,7 @@ test "Overhead Analysis: Quantity vs Native" {
                 op_name, TNames[tidx], avg_n, avg_q, slowdown,
             });
         }
-       if (j != Ops.len - 1) std.debug.print("├───────────┼──────┼───────────┼───────────┼───────────┤\n", .{});
+        if (j != Ops.len - 1) std.debug.print("├───────────┼──────┼───────────┼───────────┼───────────┤\n", .{});
     }
 
     std.debug.print("└───────────┴──────┴───────────┴───────────┴───────────┘\n", .{});

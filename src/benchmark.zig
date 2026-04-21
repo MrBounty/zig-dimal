@@ -1,14 +1,10 @@
 const std = @import("std");
-const tracy = @import("ztracy");
 const Io = std.Io;
 const Scalar = @import("Scalar.zig").Scalar;
 const Vector = @import("Vector.zig").Vector;
 
 var io: Io = undefined;
 pub fn main(init: std.process.Init) !void {
-    const zone = tracy.ZoneN(@src(), "Main Loop");
-    defer zone.End();
-
     var stdout_buf: [4096]u8 = undefined;
     var stdout_writer: std.Io.File.Writer = .init(.stdout(), init.io, &stdout_buf);
     try stdout_writer.interface.print("Starting Benchmarks...", .{});
@@ -23,8 +19,6 @@ pub fn main(init: std.process.Init) !void {
     try stdout_writer.flush();
     try bench_Vector(&stdout_writer.interface);
     try stdout_writer.flush();
-
-    tracy.FrameMark();
 }
 
 fn getTime() Io.Timestamp {

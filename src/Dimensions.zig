@@ -29,8 +29,6 @@ pub const Dimension = enum {
     }
 };
 
-// --------- Dimensions struct ---------
-
 const Self = @This();
 
 data: std.EnumArray(Dimension, comptime_int),

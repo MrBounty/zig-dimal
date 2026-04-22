@@ -7,6 +7,17 @@ const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
+// TODO: Add those operation:
+//  - eq: Equal
+//  - ne: Not equal
+//  - gt: Greather than
+//  - gte: Greather than or equal
+//  - lt: Less than
+//  - lte Less than or equal
+//  - abs: Absolut value
+//  - pow: Scalar power another
+//  - log: Scalar log another
+
 pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
     @setEvalBranchQuota(10_000_000);
     return struct {
@@ -22,14 +33,14 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
         pub inline fn add(self: Self, rhs: anytype) Scalar(
             T,
             dims,
-            scales.min(@TypeOf(rhs).scales),
+            hlp.finerScales(Self, @TypeOf(rhs)),
         ) {
             if (comptime !dims.eql(@TypeOf(rhs).dims))
                 @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
             if (comptime @TypeOf(rhs) == Self)
                 return .{ .value = self.value + rhs.value };
 
-            const TargetType = Scalar(T, dims, scales.min(@TypeOf(rhs).scales));
+            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -39,14 +50,14 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
         pub inline fn sub(self: Self, rhs: anytype) Scalar(
             T,
             dims,
-            scales.min(@TypeOf(rhs).scales),
+            hlp.finerScales(Self, @TypeOf(rhs)),
         ) {
             if (comptime !dims.eql(@TypeOf(rhs).dims))
                 @compileError("Dimension mismatch in sub: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
             if (comptime @TypeOf(rhs) == Self)
                 return .{ .value = self.value - rhs.value };
 
-            const TargetType = Scalar(T, dims, scales.min(@TypeOf(rhs).scales));
+            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -56,11 +67,11 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
         pub inline fn mulBy(self: Self, rhs: anytype) Scalar(
             T,
             dims.add(@TypeOf(rhs).dims),
-            scales.min(@TypeOf(rhs).scales),
+            hlp.finerScales(Self, @TypeOf(rhs)),
         ) {
             const RhsType = @TypeOf(rhs);
-            const SelfNorm = Scalar(T, dims, scales.min(RhsType.scales));
-            const RhsNorm = Scalar(T, RhsType.dims, scales.min(RhsType.scales));
+            const SelfNorm = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const RhsNorm = Scalar(T, RhsType.dims, hlp.finerScales(Self, @TypeOf(rhs)));
             if (comptime Self == SelfNorm and RhsType == RhsNorm)
                 return .{ .value = self.value * rhs.value };
 
@@ -72,11 +83,11 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
         pub inline fn divBy(self: Self, rhs: anytype) Scalar(
             T,
             dims.sub(@TypeOf(rhs).dims),
-            scales.min(@TypeOf(rhs).scales),
+            hlp.finerScales(Self, @TypeOf(rhs)),
         ) {
             const RhsType = @TypeOf(rhs);
-            const SelfNorm = Scalar(T, dims, scales.min(RhsType.scales));
-            const RhsNorm = Scalar(T, RhsType.dims, scales.min(RhsType.scales));
+            const SelfNorm = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const RhsNorm = Scalar(T, RhsType.dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
             const rhs_val = if (comptime RhsType == RhsNorm) rhs.value else rhs.to(RhsNorm).value;
             if (comptime @typeInfo(T) == .int) {
@@ -104,7 +115,6 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
                     const div: DestT = comptime @intFromFloat(1.0 / ratio);
                     const val = @as(DestT, @intCast(self.value));
                     const half = comptime div / 2;
-                    // Native round-to-nearest
                     const rounded = if (val >= 0) @divTrunc(val + half, div) else @divTrunc(val - half, div);
                     return .{ .value = rounded };
                 }
@@ -327,6 +337,18 @@ test "DivBy integer exact" {
     try std.testing.expectEqual(30, vel.value);
     try std.testing.expectEqual(1, @TypeOf(vel).dims.get(.L));
     try std.testing.expectEqual(-1, @TypeOf(vel).dims.get(.T));
+}
+
+test "Finer scales skip dim 0" {
+    const Dimless = Scalar(i128, Dimensions.init(.{}), Scales.init(.{}));
+    const KiloMetre = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+
+    const r = Dimless{ .value = 30 };
+    const time = KiloMetre{ .value = 4 };
+    const vel = r.mulBy(time);
+
+    try std.testing.expectEqual(120, vel.value);
+    try std.testing.expectEqual(Scales.UnitScale.k, @TypeOf(vel).scales.get(.L));
 }
 
 test "Conversion chain: km -> m -> cm" {

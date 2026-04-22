@@ -30,9 +30,13 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return .{ .data = data };
         }
 
-        pub inline fn add(self: Self, rhs: anytype) Vector(len, Scalar(T, d, s.min(@TypeOf(rhs).scales))) {
+        pub inline fn add(self: Self, rhs: anytype) Vector(len, Scalar(
+            T,
+            dims,
+            hlp.finerScales(Self, @TypeOf(rhs)),
+        )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar(T, d, s.min(Tr.scales))) = undefined;
+            var res: Vector(len, Scalar(T, d, hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).add(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -40,9 +44,13 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
-        pub inline fn sub(self: Self, rhs: anytype) Vector(len, Scalar(T, d, s.min(@TypeOf(rhs).scales))) {
+        pub inline fn sub(self: Self, rhs: anytype) Vector(len, Scalar(
+            T,
+            dims,
+            hlp.finerScales(Self, @TypeOf(rhs)),
+        )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar(T, d, s.min(Tr.scales))) = undefined;
+            var res: Vector(len, Scalar(T, d, hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).sub(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -53,9 +61,13 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn divBy(
             self: Self,
             rhs: anytype,
-        ) Vector(len, Scalar(T, d.sub(@TypeOf(rhs).dims), s.min(@TypeOf(rhs).scales))) {
+        ) Vector(len, Scalar(
+            T,
+            dims.sub(@TypeOf(rhs).dims),
+            hlp.finerScales(Self, @TypeOf(rhs)),
+        )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar(T, d.sub(Tr.dims), s.min(Tr.scales))) = undefined;
+            var res: Vector(len, Scalar(T, d.sub(Tr.dims), hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).divBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -66,9 +78,13 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn mulBy(
             self: Self,
             rhs: anytype,
-        ) Vector(len, Scalar(T, d.add(@TypeOf(rhs).dims), s.min(@TypeOf(rhs).scales))) {
+        ) Vector(len, Scalar(
+            T,
+            dims.add(@TypeOf(rhs).dims),
+            hlp.finerScales(Self, @TypeOf(rhs)),
+        )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar(T, d.add(Tr.dims), s.min(Tr.scales))) = undefined;
+            var res: Vector(len, Scalar(T, d.add(Tr.dims), hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).mulBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -79,8 +95,12 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn divByScalar(
             self: Self,
             scalar: anytype,
-        ) Vector(len, Scalar(T, d.sub(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) {
-            var res: Vector(len, Scalar(T, d.sub(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) = undefined;
+        ) Vector(len, Scalar(
+            T,
+            dims.sub(@TypeOf(scalar).dims),
+            hlp.finerScales(Self, @TypeOf(scalar)),
+        )) {
+            var res: Vector(len, Scalar(T, d.sub(@TypeOf(scalar).dims), hlp.finerScales(Self, @TypeOf(scalar)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.divBy(scalar).value;
@@ -91,8 +111,12 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn mulByScalar(
             self: Self,
             scalar: anytype,
-        ) Vector(len, Scalar(T, d.add(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) {
-            var res: Vector(len, Scalar(T, d.add(@TypeOf(scalar).dims), s.min(@TypeOf(scalar).scales))) = undefined;
+        ) Vector(len, Scalar(
+            T,
+            dims.add(@TypeOf(scalar).dims),
+            hlp.finerScales(Self, @TypeOf(scalar)),
+        )) {
+            var res: Vector(len, Scalar(T, d.add(@TypeOf(scalar).dims), hlp.finerScales(Self, @TypeOf(scalar)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.mulBy(scalar).value;
@@ -102,25 +126,22 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         pub fn negate(self: Self) Self {
             var res: Self = undefined;
-            inline for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i|
                 res.data[i] = -v;
-            }
             return res;
         }
 
         pub inline fn to(self: Self, comptime DestQ: type) Vector(len, DestQ) {
             var res: Vector(len, DestQ) = undefined;
-            inline for (self.data, 0..) |v, i| {
+            inline for (self.data, 0..) |v, i|
                 res.data[i] = (Q{ .value = v }).to(DestQ).value;
-            }
             return res;
         }
 
         pub inline fn lengthSqr(self: Self) T {
             var sum: T = 0;
-            inline for (self.data) |v| {
+            inline for (self.data) |v|
                 sum += v * v;
-            }
             return sum;
         }
 
@@ -128,10 +149,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             const len_sq = self.lengthSqr();
 
             if (comptime @typeInfo(T) == .int) {
-                // Construct the unsigned equivalent of T at comptime (e.g., i32 -> u32)
                 const UnsignedT = @Int(.unsigned, @typeInfo(T).int.bits);
-
-                // len_sq is always positive, so @intCast is perfectly safe
                 const u_len_sq = @as(UnsignedT, @intCast(len_sq));
                 return @as(T, @intCast(std.math.sqrt(u_len_sq)));
             } else {

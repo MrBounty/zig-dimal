@@ -81,25 +81,17 @@ pub fn set(comptime self: *Scales, comptime key: Dimension, comptime val: UnitSc
     comptime self.data.set(key, val);
 }
 
-pub fn min(comptime s1: Scales, comptime s2: Scales) Scales {
-    comptime var out = Scales.initFill(.none);
-    inline for (std.enums.values(Dimension)) |dim|
-        out.set(dim, if (s1.get(dim).getFactorInt() > s2.get(dim).getFactorInt()) s2.get(dim) else s1.get(dim));
-
-    return out;
-}
-
 pub inline fn getFactor(comptime s: Scales, comptime d: Dimensions) comptime_float {
     comptime var factor: f64 = 1.0;
     inline for (std.enums.values(Dimension)) |dim| {
-        const power = d.get(dim);
-        if (power == 0) continue;
+        const power = comptime d.get(dim);
+        if (comptime power == 0) continue;
 
-        const base = s.get(dim).getFactor();
+        const base = comptime s.get(dim).getFactor();
 
-        var i: i32 = 0;
+        var i: comptime_int = 0;
         const abs_power = if (power < 0) -power else power;
-        while (i < abs_power) : (i += 1) {
+        inline while (i < abs_power) : (i += 1) {
             if (power > 0)
                 factor *= base
             else

@@ -30,3 +30,30 @@ pub fn printSuperscript(writer: *std.Io.Writer, n: i32) !void {
         try writer.writeAll(s);
     }
 }
+
+const Scales = @import("Scales.zig");
+const Dimensions = @import("Dimensions.zig");
+const Dimension = @import("Dimensions.zig").Dimension;
+
+pub fn finerScales(comptime T1: type, comptime T2: type) Scales {
+    const d1: Dimensions = T1.dims;
+    const d2: Dimensions = T2.dims;
+    const s1: Scales = T1.scales;
+    const s2: Scales = T2.scales;
+    comptime var out = Scales.initFill(.none);
+    inline for (std.enums.values(Dimension)) |dim| {
+        const scale1 = comptime s1.get(dim);
+        const scale2 = comptime s2.get(dim);
+        out.set(dim, if (comptime d1.get(dim) == 0 and d2.get(dim) == 0)
+            .none
+        else if (comptime d1.get(dim) == 0)
+            scale2
+        else if (comptime d2.get(dim) == 0)
+            scale1
+        else if (comptime scale1.getFactor() > scale2.getFactor())
+            scale2
+        else
+            scale1);
+    }
+    comptime return out;
+}

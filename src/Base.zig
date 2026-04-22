@@ -134,13 +134,13 @@ test "BaseQuantities - Dynamics (Force and Work)" {
 
     // Force = mass * acceleration
     const f = m.mulBy(a);
-    try std.testing.expectEqual(98000, f.value);
+    try std.testing.expectEqual(98, f.value);
     try std.testing.expect(Force.dims.eql(@TypeOf(f).dims));
 
     // Energy (Work) = Force * distance
     const distance = Meter.Of(f32){ .value = 5.0 };
     const energy = f.mulBy(distance);
-    try std.testing.expectEqual(490000, energy.value);
+    try std.testing.expectEqual(490, energy.value);
     try std.testing.expect(Energy.dims.eql(@TypeOf(energy).dims));
 }
 

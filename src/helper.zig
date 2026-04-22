@@ -57,3 +57,42 @@ pub fn finerScales(comptime T1: type, comptime T2: type) Scales {
     }
     comptime return out;
 }
+
+// ---------------------------------------------------------------------------
+// RHS normalisation helpers
+// ---------------------------------------------------------------------------
+
+const Scalar = @import("Scalar.zig").Scalar;
+
+/// Returns true if `T` is a `Scalar_` type (has `dims`, `scales`, and `value`).
+pub fn isScalarType(comptime T: type) bool {
+    return @typeInfo(T) == .@"struct" and
+        @hasDecl(T, "dims") and
+        @hasDecl(T, "scales") and
+        @hasField(T, "value");
+}
+
+/// Resolve the Scalar type that `rhs` will be treated as.
+///
+/// Accepted rhs types:
+///   - Any `Scalar_` type               → returned as-is
+///   - `comptime_int` / `comptime_float` → dimensionless `Scalar_(BaseT, {}, {})`
+///   - `BaseT` (the scalar's value type) → dimensionless `Scalar_(BaseT, {}, {})`
+///
+/// Everything else is a compile error, including other int/float types.
+pub fn rhsScalarType(comptime BaseT: type, comptime RhsT: type) type {
+    if (comptime isScalarType(RhsT)) return RhsT;
+    if (comptime RhsT == comptime_int or RhsT == comptime_float or RhsT == BaseT)
+        return Scalar(BaseT, .{}, .{});
+    @compileError(
+        "rhs must be a Scalar, " ++ @typeName(BaseT) ++
+            ", comptime_int, or comptime_float; got " ++ @typeName(RhsT),
+    );
+}
+
+/// Convert `rhs` to its normalised Scalar form (see `rhsScalarType`).
+pub inline fn toRhsScalar(comptime BaseT: type, rhs: anytype) rhsScalarType(BaseT, @TypeOf(rhs)) {
+    if (comptime isScalarType(@TypeOf(rhs))) return rhs;
+    const DimLess = Scalar(BaseT, .{}, .{});
+    return DimLess{ .value = @as(BaseT, rhs) };
+}

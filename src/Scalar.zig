@@ -8,43 +8,6 @@ const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
 // ---------------------------------------------------------------------------
-// RHS normalisation helpers
-// ---------------------------------------------------------------------------
-
-/// Returns true if `T` is a `Scalar_` type (has `dims`, `scales`, and `value`).
-pub fn isScalarType(comptime T: type) bool {
-    return @typeInfo(T) == .@"struct" and
-        @hasDecl(T, "dims") and
-        @hasDecl(T, "scales") and
-        @hasField(T, "value");
-}
-
-/// Resolve the Scalar type that `rhs` will be treated as.
-///
-/// Accepted rhs types:
-///   - Any `Scalar_` type               → returned as-is
-///   - `comptime_int` / `comptime_float` → dimensionless `Scalar_(BaseT, {}, {})`
-///   - `BaseT` (the scalar's value type) → dimensionless `Scalar_(BaseT, {}, {})`
-///
-/// Everything else is a compile error, including other int/float types.
-pub fn rhsScalarType(comptime BaseT: type, comptime RhsT: type) type {
-    if (comptime isScalarType(RhsT)) return RhsT;
-    if (comptime RhsT == comptime_int or RhsT == comptime_float or RhsT == BaseT)
-        return Scalar(BaseT, .{}, .{});
-    @compileError(
-        "rhs must be a Scalar, " ++ @typeName(BaseT) ++
-            ", comptime_int, or comptime_float; got " ++ @typeName(RhsT),
-    );
-}
-
-/// Convert `rhs` to its normalised Scalar form (see `rhsScalarType`).
-pub inline fn toRhsScalar(comptime BaseT: type, rhs: anytype) rhsScalarType(BaseT, @TypeOf(rhs)) {
-    if (comptime isScalarType(@TypeOf(rhs))) return rhs;
-    const DimLess = Scalar(BaseT, .{}, .{});
-    return DimLess{ .value = @as(BaseT, rhs) };
-}
-
-// ---------------------------------------------------------------------------
 
 /// A dimensioned scalar value. `T` is the numeric type, `d` the dimension exponents, `s` the SI scales.
 /// All dimension and unit tracking is resolved at comptime — zero runtime overhead.
@@ -69,12 +32,12 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
 
         /// Scalar type that `rhs` normalises to (bare numbers → dimensionless).
         inline fn RhsT(comptime Rhs: type) type {
-            return rhsScalarType(T, Rhs);
+            return hlp.rhsScalarType(T, Rhs);
         }
 
         /// Normalise `rhs` (bare number or Scalar) into a proper Scalar value.
         inline fn rhs(r: anytype) RhsT(@TypeOf(r)) {
-            return toRhsScalar(T, r);
+            return hlp.toRhsScalar(T, r);
         }
 
         // ---------------------------------------------------------------

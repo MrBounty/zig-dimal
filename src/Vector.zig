@@ -29,6 +29,33 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return .{ .data = data };
         }
 
+        // -------------------------------------------------------------------
+        // Internal: scalar-rhs normalisation (mirrors Scalar.zig)
+        // -------------------------------------------------------------------
+
+        /// Resolved Scalar type for a scalar operand (bare number or Scalar).
+        /// Passing another Vector here is a compile error.
+        inline fn ScalarRhsT(comptime Rhs: type) type {
+            if (comptime switch (@typeInfo(Rhs)) {
+                .@"struct", .@"enum", .@"union", .@"opaque" => @hasDecl(Rhs, "ScalarType"),
+                else => false,
+            })
+                @compileError(
+                    "Expected a Scalar or bare number; got a Vector. " ++
+                        "Use mulBy / divBy for element-wise vector operations.",
+                );
+            return hlp.rhsScalarType(T, Rhs);
+        }
+
+        /// Normalise a scalar rhs (bare number → dimensionless Scalar).
+        inline fn scalarRhs(r: anytype) ScalarRhsT(@TypeOf(r)) {
+            return hlp.toRhsScalar(T, r);
+        }
+
+        // -------------------------------------------------------------------
+        // Vector–Vector operations  (rhs must be a Vector of the same length)
+        // -------------------------------------------------------------------
+
         /// Element-wise addition. Dimensions must match; scales resolve to the finer of the two.
         pub inline fn add(self: Self, rhs: anytype) Vector(len, Scalar(
             T,
@@ -110,47 +137,58 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
-        /// Divide every component by a single scalar. Dimensions are subtracted (e.g. position / time → velocity).
+        // -------------------------------------------------------------------
+        // Vector–Scalar operations
+        // scalar may be: Scalar, T, comptime_int, comptime_float
+        // -------------------------------------------------------------------
+
+        /// Divide every component by a single scalar. Dimensions are subtracted.
+        /// `scalar` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
         pub inline fn divByScalar(
             self: Self,
             scalar: anytype,
         ) Vector(len, Scalar(
             T,
-            dims.sub(@TypeOf(scalar).dims).argsOpt(),
-            hlp.finerScales(Self, @TypeOf(scalar)).argsOpt(),
+            dims.sub(ScalarRhsT(@TypeOf(scalar)).dims).argsOpt(),
+            hlp.finerScales(Self, ScalarRhsT(@TypeOf(scalar))).argsOpt(),
         )) {
+            const s_norm = scalarRhs(scalar);
+            const SN = @TypeOf(s_norm);
             var res: Vector(len, Scalar(
                 T,
-                dims.sub(@TypeOf(scalar).dims).argsOpt(),
-                hlp.finerScales(Self, @TypeOf(scalar)).argsOpt(),
+                dims.sub(SN.dims).argsOpt(),
+                hlp.finerScales(Self, SN).argsOpt(),
             )) = undefined;
-            inline for (self.data, 0..) |v, i| {
-                const q = Q{ .value = v };
-                res.data[i] = q.divBy(scalar).value;
-            }
+            inline for (self.data, 0..) |v, i|
+                res.data[i] = (Q{ .value = v }).divBy(s_norm).value;
             return res;
         }
 
         /// Multiply every component by a single scalar. Dimensions are summed.
+        /// `scalar` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
         pub inline fn mulByScalar(
             self: Self,
             scalar: anytype,
         ) Vector(len, Scalar(
             T,
-            dims.add(@TypeOf(scalar).dims).argsOpt(),
-            hlp.finerScales(Self, @TypeOf(scalar)).argsOpt(),
+            dims.add(ScalarRhsT(@TypeOf(scalar)).dims).argsOpt(),
+            hlp.finerScales(Self, ScalarRhsT(@TypeOf(scalar))).argsOpt(),
         )) {
+            const s_norm = scalarRhs(scalar);
+            const SN = @TypeOf(s_norm);
             var res: Vector(len, Scalar(
                 T,
-                dims.add(@TypeOf(scalar).dims).argsOpt(),
-                hlp.finerScales(Self, @TypeOf(scalar)).argsOpt(),
+                dims.add(SN.dims).argsOpt(),
+                hlp.finerScales(Self, SN).argsOpt(),
             )) = undefined;
-            inline for (self.data, 0..) |v, i| {
-                const q = Q{ .value = v };
-                res.data[i] = q.mulBy(scalar).value;
-            }
+            inline for (self.data, 0..) |v, i|
+                res.data[i] = (Q{ .value = v }).mulBy(s_norm).value;
             return res;
         }
+
+        // -------------------------------------------------------------------
+        // Dot / Cross
+        // -------------------------------------------------------------------
 
         /// Standard dot product. Dimensions are summed (e.g., Force * Distance = Energy).
         /// Returns a Scalar type with the combined dimensions and finest scale.
@@ -201,6 +239,10 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
                 },
             };
         }
+
+        // -------------------------------------------------------------------
+        // Unary
+        // -------------------------------------------------------------------
 
         /// Returns a vector where each component is the absolute value of the original.
         pub inline fn abs(self: Self) Self {
@@ -253,6 +295,55 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             }
             return res;
         }
+
+        /// Negate all components. Dimensions are preserved.
+        pub fn negate(self: Self) Self {
+            var res: Self = undefined;
+            inline for (self.data, 0..) |v, i|
+                res.data[i] = -v;
+            return res;
+        }
+
+        // -------------------------------------------------------------------
+        // Conversion
+        // -------------------------------------------------------------------
+
+        /// Convert all components to a compatible scalar type. Compile error on dimension mismatch.
+        pub inline fn to(self: Self, comptime DestQ: type) Vector(len, DestQ) {
+            var res: Vector(len, DestQ) = undefined;
+            inline for (self.data, 0..) |v, i|
+                res.data[i] = (Q{ .value = v }).to(DestQ).value;
+            return res;
+        }
+
+        // -------------------------------------------------------------------
+        // Length
+        // -------------------------------------------------------------------
+
+        /// Sum of squared components. Cheaper than `length` — use for comparisons.
+        pub inline fn lengthSqr(self: Self) T {
+            var sum: T = 0;
+            inline for (self.data) |v|
+                sum += v * v;
+            return sum;
+        }
+
+        /// Euclidean length. Integer types use integer sqrt (truncated).
+        pub inline fn length(self: Self) T {
+            const len_sq = self.lengthSqr();
+
+            if (comptime @typeInfo(T) == .int) {
+                const UnsignedT = @Int(.unsigned, @typeInfo(T).int.bits);
+                const u_len_sq = @as(UnsignedT, @intCast(len_sq));
+                return @as(T, @intCast(std.math.sqrt(u_len_sq)));
+            } else {
+                return @sqrt(len_sq);
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // Vector–Vector comparisons
+        // -------------------------------------------------------------------
 
         /// Returns true only if all components are equal after scale resolution.
         pub inline fn eqAll(self: Self, rhs: anytype) bool {
@@ -327,6 +418,11 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        // -------------------------------------------------------------------
+        // Vector–Scalar comparisons
+        // scalar may be: Scalar, T, comptime_int, comptime_float
+        // -------------------------------------------------------------------
+
         /// Compares every element in the vector to a single scalar for equality.
         /// Returns an array of booleans [len]bool. Dimensions must match; scales are auto-resolved.
         pub inline fn eqScalar(self: Self, scalar: anytype) [len]bool {
@@ -381,42 +477,9 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
-        /// Negate all components. Dimensions are preserved.
-        pub fn negate(self: Self) Self {
-            var res: Self = undefined;
-            inline for (self.data, 0..) |v, i|
-                res.data[i] = -v;
-            return res;
-        }
-
-        /// Convert all components to a compatible scalar type. Compile error on dimension mismatch.
-        pub inline fn to(self: Self, comptime DestQ: type) Vector(len, DestQ) {
-            var res: Vector(len, DestQ) = undefined;
-            inline for (self.data, 0..) |v, i|
-                res.data[i] = (Q{ .value = v }).to(DestQ).value;
-            return res;
-        }
-
-        /// Sum of squared components. Cheaper than `length` — use for comparisons.
-        pub inline fn lengthSqr(self: Self) T {
-            var sum: T = 0;
-            inline for (self.data) |v|
-                sum += v * v;
-            return sum;
-        }
-
-        /// Euclidean length. Integer types use integer sqrt (truncated).
-        pub inline fn length(self: Self) T {
-            const len_sq = self.lengthSqr();
-
-            if (comptime @typeInfo(T) == .int) {
-                const UnsignedT = @Int(.unsigned, @typeInfo(T).int.bits);
-                const u_len_sq = @as(UnsignedT, @intCast(len_sq));
-                return @as(T, @intCast(std.math.sqrt(u_len_sq)));
-            } else {
-                return @sqrt(len_sq);
-            }
-        }
+        // -------------------------------------------------------------------
+        // Formatting
+        // -------------------------------------------------------------------
 
         pub fn formatNumber(
             self: Self,
@@ -687,4 +750,78 @@ test "Vector Abs, Pow, Sqrt and Product" {
     try std.testing.expectEqual(2, sqrted.data[0]);
     try std.testing.expectEqual(4, sqrted.data[2]);
     try std.testing.expectEqual(2, @TypeOf(sqrted).dims.get(.L));
+}
+
+test "mulByScalar comptime_int" {
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
+    const v = Meter.Vec3{ .data = .{ 1, 2, 3 } };
+
+    const scaled = v.mulByScalar(10); // comptime_int → dimensionless
+    try std.testing.expectEqual(10, scaled.data[0]);
+    try std.testing.expectEqual(20, scaled.data[1]);
+    try std.testing.expectEqual(30, scaled.data[2]);
+    // Dimensions unchanged: L¹ × dimensionless = L¹
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+    try std.testing.expectEqual(0, @TypeOf(scaled).dims.get(.T));
+}
+
+test "mulByScalar comptime_float" {
+    const MeterF = Scalar(f32, .{ .L = 1 }, .{});
+    const v = MeterF.Vec3{ .data = .{ 1.0, 2.0, 4.0 } };
+
+    const scaled = v.mulByScalar(0.5); // comptime_float → dimensionless
+    try std.testing.expectApproxEqAbs(0.5, scaled.data[0], 1e-6);
+    try std.testing.expectApproxEqAbs(1.0, scaled.data[1], 1e-6);
+    try std.testing.expectApproxEqAbs(2.0, scaled.data[2], 1e-6);
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+}
+
+test "mulByScalar T (value type)" {
+    const MeterF = Scalar(f32, .{ .L = 1 }, .{});
+    const v = MeterF.Vec3{ .data = .{ 3.0, 6.0, 9.0 } };
+    const factor: f32 = 2.0;
+
+    const scaled = v.mulByScalar(factor);
+    try std.testing.expectApproxEqAbs(6.0, scaled.data[0], 1e-6);
+    try std.testing.expectApproxEqAbs(12.0, scaled.data[1], 1e-6);
+    try std.testing.expectApproxEqAbs(18.0, scaled.data[2], 1e-6);
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+}
+
+test "divByScalar comptime_int" {
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
+    const v = Meter.Vec3{ .data = .{ 10, 20, 30 } };
+
+    const halved = v.divByScalar(2); // comptime_int → dimensionless divisor
+    try std.testing.expectEqual(5, halved.data[0]);
+    try std.testing.expectEqual(10, halved.data[1]);
+    try std.testing.expectEqual(15, halved.data[2]);
+    try std.testing.expectEqual(1, @TypeOf(halved).dims.get(.L));
+}
+
+test "divByScalar comptime_float" {
+    const MeterF = Scalar(f64, .{ .L = 1 }, .{});
+    const v = MeterF.Vec3{ .data = .{ 9.0, 6.0, 3.0 } };
+
+    const r = v.divByScalar(3.0);
+    try std.testing.expectApproxEqAbs(3.0, r.data[0], 1e-9);
+    try std.testing.expectApproxEqAbs(2.0, r.data[1], 1e-9);
+    try std.testing.expectApproxEqAbs(1.0, r.data[2], 1e-9);
+    try std.testing.expectEqual(1, @TypeOf(r).dims.get(.L));
+}
+
+test "eqScalar / gtScalar with comptime_int on dimensionless vector" {
+    // Bare numbers are dimensionless, so comparisons only work when vector is dimensionless too.
+    const DimLess = Scalar(i32, .{}, .{});
+    const v = DimLess.Vec3{ .data = .{ 1, 2, 3 } };
+
+    const eq_res = v.eqScalar(2);
+    try std.testing.expectEqual(false, eq_res[0]);
+    try std.testing.expectEqual(true, eq_res[1]);
+    try std.testing.expectEqual(false, eq_res[2]);
+
+    const gt_res = v.gtScalar(1);
+    try std.testing.expectEqual(false, gt_res[0]);
+    try std.testing.expectEqual(true, gt_res[1]);
+    try std.testing.expectEqual(true, gt_res[2]);
 }

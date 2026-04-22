@@ -130,6 +130,56 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Standard dot product. Dimensions are summed (e.g., Force * Distance = Energy).
+        /// Returns a Scalar type with the combined dimensions and finest scale.
+        pub inline fn dot(self: Self, rhs: anytype) Scalar(
+            T,
+            dims.add(@TypeOf(rhs).dims),
+            hlp.finerScales(Self, @TypeOf(rhs)),
+        ) {
+            const Tr = @TypeOf(rhs);
+
+            var sum: T = 0;
+            inline for (self.data, 0..) |v, i| {
+                const q_lhs = Q{ .value = v };
+                const q_rhs = Tr.ScalarType{ .value = rhs.data[i] };
+                sum += q_lhs.mulBy(q_rhs).value;
+            }
+            return .{ .value = sum };
+        }
+
+        /// 3D Cross product. Dimensions are summed.
+        /// Only valid for vectors of length 3.
+        pub inline fn cross(self: Self, rhs: anytype) Vector(3, Scalar(
+            T,
+            dims.add(@TypeOf(rhs).dims),
+            hlp.finerScales(Self, @TypeOf(rhs)),
+        )) {
+            if (comptime len != 3)
+                @compileError("Cross product is only defined for Vector(3, ...)");
+
+            const Tr = @TypeOf(rhs);
+            const ResScalar = Scalar(T, d.add(Tr.dims), hlp.finerScales(Self, Tr));
+            const ResVec = Vector(3, ResScalar);
+
+            // Calculation: [y1*z2 - z1*y2, z1*x2 - x1*z2, x1*y2 - y1*x2]
+            const s1 = Q{ .value = self.data[0] };
+            const s2 = Q{ .value = self.data[1] };
+            const s3 = Q{ .value = self.data[2] };
+
+            const o1 = Tr.ScalarType{ .value = rhs.data[0] };
+            const o2 = Tr.ScalarType{ .value = rhs.data[1] };
+            const o3 = Tr.ScalarType{ .value = rhs.data[2] };
+
+            return ResVec{
+                .data = .{
+                    s2.mulBy(o3).sub(s3.mulBy(o2)).value,
+                    s3.mulBy(o1).sub(s1.mulBy(o3)).value,
+                    s1.mulBy(o2).sub(s2.mulBy(o1)).value,
+                },
+            };
+        }
+
         /// Returns true only if all components are equal after scale resolution.
         pub inline fn eqAll(self: Self, rhs: anytype) bool {
             const Tr = @TypeOf(rhs);
@@ -519,4 +569,28 @@ test "Vector vs Scalar Comparisons" {
     const exact_match = positions.eqScalar(Meter{ .value = 500.0 });
     try std.testing.expect(exact_match[0] == true);
     try std.testing.expect(exact_match[1] == false);
+}
+
+test "Vector Dot and Cross Products" {
+    const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Newton = Scalar(f32, Dimensions.init(.{ .M = 1, .L = 1, .T = -2 }), Scales.init(.{}));
+
+    const pos = Meter.Vec3{ .data = .{ 10.0, 0.0, 0.0 } };
+    const force = Newton.Vec3{ .data = .{ 5.0, 5.0, 0.0 } };
+
+    // 1. Dot Product (Work = F dot d)
+    const work = force.dot(pos);
+    try std.testing.expectEqual(50.0, work.value);
+    // Dimensions should be M¹L²T⁻² (Energy/Joules)
+    try std.testing.expectEqual(1, @TypeOf(work).dims.get(.M));
+    try std.testing.expectEqual(2, @TypeOf(work).dims.get(.L));
+    try std.testing.expectEqual(-2, @TypeOf(work).dims.get(.T));
+
+    // 2. Cross Product (Torque = r cross F)
+    const torque = pos.cross(force);
+    try std.testing.expectEqual(0.0, torque.data[0]);
+    try std.testing.expectEqual(0.0, torque.data[1]);
+    try std.testing.expectEqual(50.0, torque.data[2]);
+    // Torque dimensions are same as Energy but as a Vector
+    try std.testing.expectEqual(2, @TypeOf(torque).dims.get(.L));
 }

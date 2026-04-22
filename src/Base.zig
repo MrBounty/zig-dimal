@@ -153,12 +153,12 @@ test "BaseQuantities - Kinematics equations" {
     const t = Second.Of(f32){ .value = 2.0 };
 
     // Velocity = Distance / Time
-    const v = d.divBy(t);
+    const v = d.div(t);
     try std.testing.expectEqual(25.0, v.value);
     try std.testing.expect(Speed.dims.eql(@TypeOf(v).dims));
 
     // Acceleration = Velocity / Time
-    const a = v.divBy(t);
+    const a = v.div(t);
     try std.testing.expectEqual(12.5, a.value);
     try std.testing.expect(Acceleration.dims.eql(@TypeOf(a).dims));
 }
@@ -170,13 +170,13 @@ test "BaseQuantities - Dynamics (Force and Work)" {
     const a = Acceleration.Of(f32){ .value = 9.8 };
 
     // Force = mass * acceleration
-    const f = m.mulBy(a);
+    const f = m.mul(a);
     try std.testing.expectEqual(98, f.value);
     try std.testing.expect(Force.dims.eql(@TypeOf(f).dims));
 
     // Energy (Work) = Force * distance
     const distance = Meter.Of(f32){ .value = 5.0 };
-    const energy = f.mulBy(distance);
+    const energy = f.mul(distance);
     try std.testing.expectEqual(490, energy.value);
     try std.testing.expect(Energy.dims.eql(@TypeOf(energy).dims));
 }
@@ -186,7 +186,7 @@ test "BaseQuantities - Electric combinations" {
     const time = Second.Of(f32){ .value = 3.0 }; // 3 s
 
     // Charge = Current * time
-    const charge = current.mulBy(time);
+    const charge = current.mul(time);
     try std.testing.expectEqual(6.0, charge.value);
     try std.testing.expect(ElectricCharge.dims.eql(@TypeOf(charge).dims));
 }

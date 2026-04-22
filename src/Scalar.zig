@@ -90,7 +90,7 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
         /// Multiply two quantities. Dimension exponents are summed: `L¹ * T⁻¹ → L¹T⁻¹`.
         /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`
         /// (bare numbers are treated as dimensionless — dimensions pass through unchanged).
-        pub inline fn mulBy(self: Self, r: anytype) Scalar(
+        pub inline fn mul(self: Self, r: anytype) Scalar(
             T,
             dims.add(RhsT(@TypeOf(r)).dims).argsOpt(),
             hlp.finerScales(Self, RhsT(@TypeOf(r))).argsOpt(),
@@ -110,7 +110,7 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
         /// Divide two quantities. Dimension exponents are subtracted: `L¹ / T¹ → L¹T⁻¹`.
         /// Integer types use truncating division.
         /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
-        pub inline fn divBy(self: Self, r: anytype) Scalar(
+        pub inline fn div(self: Self, r: anytype) Scalar(
             T,
             dims.sub(RhsT(@TypeOf(r)).dims).argsOpt(),
             hlp.finerScales(Self, RhsT(@TypeOf(r))).argsOpt(),
@@ -193,10 +193,10 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
                     const mult: DestT = comptime @intFromFloat(ratio);
                     return .{ .value = @as(DestT, @intCast(self.value)) * mult };
                 } else if (comptime ratio < 1.0 and @round(1.0 / ratio) == 1.0 / ratio) {
-                    const div: DestT = comptime @intFromFloat(1.0 / ratio);
+                    const d: DestT = comptime @intFromFloat(1.0 / ratio);
                     const val = @as(DestT, @intCast(self.value));
-                    const half = comptime div / 2;
-                    const rounded = if (val >= 0) @divTrunc(val + half, div) else @divTrunc(val - half, div);
+                    const half = comptime d / 2;
+                    const rounded = if (val >= 0) @divTrunc(val + half, d) else @divTrunc(val - half, d);
                     return .{ .value = rounded };
                 }
             }
@@ -473,13 +473,13 @@ test "MulBy" {
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
 
-    const area_time = d.mulBy(t);
+    const area_time = d.mul(t);
     try std.testing.expectEqual(12, area_time.value);
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.L));
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.T));
 
     const d2 = Meter{ .value = 5.0 };
-    const area = d.mulBy(d2);
+    const area = d.mul(d2);
     try std.testing.expectEqual(15, area.value);
     try std.testing.expectEqual(2, @TypeOf(area).dims.get(.L));
     try std.testing.expectEqual(0, @TypeOf(area).dims.get(.T));
@@ -491,7 +491,7 @@ test "MulBy with scale" {
 
     const dist = KiloMeter{ .value = 2.0 };
     const mass = KiloGram{ .value = 3.0 };
-    const prod = dist.mulBy(mass);
+    const prod = dist.mul(mass);
     try std.testing.expectEqual(1, @TypeOf(prod).dims.get(.L));
     try std.testing.expectEqual(1, @TypeOf(prod).dims.get(.M));
 }
@@ -505,8 +505,8 @@ test "MulBy with type change" {
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
 
-    const area_time = d.mulBy(t).to(KmSec);
-    const area_time_f = d.mulBy(t).to(KmSec_f);
+    const area_time = d.mul(t).to(KmSec);
+    const area_time_f = d.mul(t).to(KmSec_f);
     try std.testing.expectEqual(12, area_time.value);
     try std.testing.expectApproxEqAbs(12, area_time_f.value, 0.0001);
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.L));
@@ -520,7 +520,7 @@ test "MulBy small" {
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
 
-    const area_time = d.mulBy(t);
+    const area_time = d.mul(t);
     try std.testing.expectEqual(12, area_time.value);
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.L));
     try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.T));
@@ -531,7 +531,7 @@ test "MulBy dimensionless" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
 
     const d = Meter{ .value = 7 };
-    const scaled = d.mulBy(DimLess{ .value = 3 });
+    const scaled = d.mul(DimLess{ .value = 3 });
     try std.testing.expectEqual(21, scaled.value);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
 }
@@ -562,13 +562,13 @@ test "Chained: velocity and acceleration" {
 
     const dist = Meter{ .value = 100.0 };
     const t1 = Second{ .value = 5.0 };
-    const velocity = dist.divBy(t1);
+    const velocity = dist.div(t1);
     try std.testing.expectEqual(20, velocity.value);
     try std.testing.expectEqual(1, @TypeOf(velocity).dims.get(.L));
     try std.testing.expectEqual(-1, @TypeOf(velocity).dims.get(.T));
 
     const t2 = Second{ .value = 4.0 };
-    const accel = velocity.divBy(t2);
+    const accel = velocity.div(t2);
     try std.testing.expectEqual(5, accel.value);
     try std.testing.expectEqual(1, @TypeOf(accel).dims.get(.L));
     try std.testing.expectEqual(-2, @TypeOf(accel).dims.get(.T));
@@ -580,7 +580,7 @@ test "DivBy integer exact" {
 
     const dist = Meter{ .value = 120 };
     const time = Second{ .value = 4 };
-    const vel = dist.divBy(time);
+    const vel = dist.div(time);
 
     try std.testing.expectEqual(30, vel.value);
     try std.testing.expectEqual(1, @TypeOf(vel).dims.get(.L));
@@ -593,7 +593,7 @@ test "Finer scales skip dim 0" {
 
     const r = Dimless{ .value = 30 };
     const time = KiloMetre{ .value = 4 };
-    const vel = r.mulBy(time);
+    const vel = r.mul(time);
 
     try std.testing.expectEqual(120, vel.value);
     try std.testing.expectEqual(Scales.UnitScale.k, @TypeOf(vel).scales.get(.L));
@@ -690,49 +690,49 @@ test "Pow" {
     try std.testing.expectEqual(3, @TypeOf(area_f).dims.get(.L));
 }
 
-test "mulBy comptime_int" {
+test "mul comptime_int" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const d = Meter{ .value = 7 };
 
-    const scaled = d.mulBy(3); // comptime_int → dimensionless
+    const scaled = d.mul(3); // comptime_int → dimensionless
     try std.testing.expectEqual(21, scaled.value);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
     try std.testing.expectEqual(0, @TypeOf(scaled).dims.get(.T));
 }
 
-test "mulBy comptime_float" {
+test "mul comptime_float" {
     const MeterF = Scalar(f64, .{ .L = 1 }, .{});
     const d = MeterF{ .value = 4.0 };
 
-    const scaled = d.mulBy(2.5); // comptime_float → dimensionless
+    const scaled = d.mul(2.5); // comptime_float → dimensionless
     try std.testing.expectApproxEqAbs(10.0, scaled.value, 1e-9);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
 }
 
-test "mulBy T (value type)" {
+test "mul T (value type)" {
     const MeterF = Scalar(f32, .{ .L = 1 }, .{});
     const d = MeterF{ .value = 6.0 };
     const factor: f32 = 0.5;
 
-    const scaled = d.mulBy(factor); // bare f32 → dimensionless
+    const scaled = d.mul(factor); // bare f32 → dimensionless
     try std.testing.expectApproxEqAbs(3.0, scaled.value, 1e-6);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
 }
 
-test "divBy comptime_int" {
+test "div comptime_int" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const d = Meter{ .value = 100 };
 
-    const half = d.divBy(4); // comptime_int → dimensionless divisor
+    const half = d.div(4); // comptime_int → dimensionless divisor
     try std.testing.expectEqual(25, half.value);
     try std.testing.expectEqual(1, @TypeOf(half).dims.get(.L));
 }
 
-test "divBy comptime_float" {
+test "div comptime_float" {
     const MeterF = Scalar(f64, .{ .L = 1 }, .{});
     const d = MeterF{ .value = 9.0 };
 
-    const r = d.divBy(3.0);
+    const r = d.div(3.0);
     try std.testing.expectApproxEqAbs(3.0, r.value, 1e-9);
     try std.testing.expectEqual(1, @TypeOf(r).dims.get(.L));
 }

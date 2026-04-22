@@ -75,7 +75,7 @@ pub fn argsOpt(self: Self) ArgOpts {
     return args;
 }
 
-/// Add exponents component-wise. Used internally by `mulBy`.
+/// Add exponents component-wise. Used internally by `mul`.
 pub fn add(comptime a: Self, comptime b: Self) Self {
     var result = Self.initFill(0);
     inline for (std.enums.values(Dimension)) |d|
@@ -83,7 +83,7 @@ pub fn add(comptime a: Self, comptime b: Self) Self {
     return result;
 }
 
-/// Subtract exponents component-wise. Used internally by `divBy`.
+/// Subtract exponents component-wise. Used internally by `div`.
 pub fn sub(comptime a: Self, comptime b: Self) Self {
     var result = Self.initFill(0);
     inline for (std.enums.values(Dimension)) |d|

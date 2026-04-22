@@ -42,7 +42,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             })
                 @compileError(
                     "Expected a Scalar or bare number; got a Vector. " ++
-                        "Use mulBy / divBy for element-wise vector operations.",
+                        "Use mul / div for element-wise vector operations.",
                 );
             return hlp.rhsScalarType(T, Rhs);
         }
@@ -94,7 +94,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         }
 
         /// Element-wise division. Dimension exponents are subtracted per component.
-        pub inline fn divBy(
+        pub inline fn div(
             self: Self,
             rhs: anytype,
         ) Vector(len, Scalar(
@@ -109,14 +109,14 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
                 hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
             )) = undefined;
             inline for (self.data, 0..) |v, i| {
-                const q = (Q{ .value = v }).divBy(Tr.ScalarType{ .value = rhs.data[i] });
+                const q = (Q{ .value = v }).div(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
         }
 
         /// Element-wise multiplication. Dimension exponents are summed per component.
-        pub inline fn mulBy(
+        pub inline fn mul(
             self: Self,
             rhs: anytype,
         ) Vector(len, Scalar(
@@ -131,7 +131,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
                 hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
             )) = undefined;
             inline for (self.data, 0..) |v, i| {
-                const q = (Q{ .value = v }).mulBy(Tr.ScalarType{ .value = rhs.data[i] });
+                const q = (Q{ .value = v }).mul(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
             }
             return res;
@@ -144,7 +144,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         /// Divide every component by a single scalar. Dimensions are subtracted.
         /// `scalar` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
-        pub inline fn divByScalar(
+        pub inline fn divScalar(
             self: Self,
             scalar: anytype,
         ) Vector(len, Scalar(
@@ -160,13 +160,13 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
                 hlp.finerScales(Self, SN).argsOpt(),
             )) = undefined;
             inline for (self.data, 0..) |v, i|
-                res.data[i] = (Q{ .value = v }).divBy(s_norm).value;
+                res.data[i] = (Q{ .value = v }).div(s_norm).value;
             return res;
         }
 
         /// Multiply every component by a single scalar. Dimensions are summed.
         /// `scalar` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
-        pub inline fn mulByScalar(
+        pub inline fn mulScalar(
             self: Self,
             scalar: anytype,
         ) Vector(len, Scalar(
@@ -182,7 +182,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
                 hlp.finerScales(Self, SN).argsOpt(),
             )) = undefined;
             inline for (self.data, 0..) |v, i|
-                res.data[i] = (Q{ .value = v }).mulBy(s_norm).value;
+                res.data[i] = (Q{ .value = v }).mul(s_norm).value;
             return res;
         }
 
@@ -203,7 +203,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             inline for (self.data, 0..) |v, i| {
                 const q_lhs = Q{ .value = v };
                 const q_rhs = Tr.ScalarType{ .value = rhs.data[i] };
-                sum += q_lhs.mulBy(q_rhs).value;
+                sum += q_lhs.mul(q_rhs).value;
             }
             return .{ .value = sum };
         }
@@ -233,9 +233,9 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
             return ResVec{
                 .data = .{
-                    s2.mulBy(o3).sub(s3.mulBy(o2)).value,
-                    s3.mulBy(o1).sub(s1.mulBy(o3)).value,
-                    s1.mulBy(o2).sub(s2.mulBy(o1)).value,
+                    s2.mul(o3).sub(s3.mul(o2)).value,
+                    s3.mul(o1).sub(s1.mul(o3)).value,
+                    s1.mul(o2).sub(s2.mul(o1)).value,
                 },
             };
         }
@@ -591,7 +591,7 @@ test "VecX Kinematics (Scalar Mul/Div)" {
     const time = Second{ .value = 10 };
 
     // Vector divided by scalar (Velocity = Position / Time)
-    const vel = pos.divByScalar(time);
+    const vel = pos.divScalar(time);
     try std.testing.expectEqual(10, vel.data[0]);
     try std.testing.expectEqual(20, vel.data[1]);
     try std.testing.expectEqual(30, vel.data[2]);
@@ -599,7 +599,7 @@ test "VecX Kinematics (Scalar Mul/Div)" {
     try std.testing.expectEqual(-1, @TypeOf(vel).dims.get(.T));
 
     // Vector multiplied by scalar (Position = Velocity * Time)
-    const new_pos = vel.mulByScalar(time);
+    const new_pos = vel.mulScalar(time);
     try std.testing.expectEqual(100, new_pos.data[0]);
     try std.testing.expectEqual(200, new_pos.data[1]);
     try std.testing.expectEqual(300, new_pos.data[2]);
@@ -615,7 +615,7 @@ test "VecX Element-wise Math and Scaling" {
     const v2 = Vec3M{ .data = .{ 2, 5, 10 } };
 
     // Element-wise division
-    const div = v1.divBy(v2);
+    const div = v1.div(v2);
     try std.testing.expectEqual(5, div.data[0]);
     try std.testing.expectEqual(4, div.data[1]);
     try std.testing.expectEqual(3, div.data[2]);
@@ -755,11 +755,11 @@ test "Vector Abs, Pow, Sqrt and Product" {
     try std.testing.expectEqual(2, @TypeOf(sqrted).dims.get(.L));
 }
 
-test "mulByScalar comptime_int" {
+test "mulScalar comptime_int" {
     const Meter = Scalar(i32, .{ .L = 1 }, .{});
     const v = Meter.Vec3{ .data = .{ 1, 2, 3 } };
 
-    const scaled = v.mulByScalar(10); // comptime_int → dimensionless
+    const scaled = v.mulScalar(10); // comptime_int → dimensionless
     try std.testing.expectEqual(10, scaled.data[0]);
     try std.testing.expectEqual(20, scaled.data[1]);
     try std.testing.expectEqual(30, scaled.data[2]);
@@ -768,45 +768,45 @@ test "mulByScalar comptime_int" {
     try std.testing.expectEqual(0, @TypeOf(scaled).dims.get(.T));
 }
 
-test "mulByScalar comptime_float" {
+test "mulScalar comptime_float" {
     const MeterF = Scalar(f32, .{ .L = 1 }, .{});
     const v = MeterF.Vec3{ .data = .{ 1.0, 2.0, 4.0 } };
 
-    const scaled = v.mulByScalar(0.5); // comptime_float → dimensionless
+    const scaled = v.mulScalar(0.5); // comptime_float → dimensionless
     try std.testing.expectApproxEqAbs(0.5, scaled.data[0], 1e-6);
     try std.testing.expectApproxEqAbs(1.0, scaled.data[1], 1e-6);
     try std.testing.expectApproxEqAbs(2.0, scaled.data[2], 1e-6);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
 }
 
-test "mulByScalar T (value type)" {
+test "mulScalar T (value type)" {
     const MeterF = Scalar(f32, .{ .L = 1 }, .{});
     const v = MeterF.Vec3{ .data = .{ 3.0, 6.0, 9.0 } };
     const factor: f32 = 2.0;
 
-    const scaled = v.mulByScalar(factor);
+    const scaled = v.mulScalar(factor);
     try std.testing.expectApproxEqAbs(6.0, scaled.data[0], 1e-6);
     try std.testing.expectApproxEqAbs(12.0, scaled.data[1], 1e-6);
     try std.testing.expectApproxEqAbs(18.0, scaled.data[2], 1e-6);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
 }
 
-test "divByScalar comptime_int" {
+test "divScalar comptime_int" {
     const Meter = Scalar(i32, .{ .L = 1 }, .{});
     const v = Meter.Vec3{ .data = .{ 10, 20, 30 } };
 
-    const halved = v.divByScalar(2); // comptime_int → dimensionless divisor
+    const halved = v.divScalar(2); // comptime_int → dimensionless divisor
     try std.testing.expectEqual(5, halved.data[0]);
     try std.testing.expectEqual(10, halved.data[1]);
     try std.testing.expectEqual(15, halved.data[2]);
     try std.testing.expectEqual(1, @TypeOf(halved).dims.get(.L));
 }
 
-test "divByScalar comptime_float" {
+test "divScalar comptime_float" {
     const MeterF = Scalar(f64, .{ .L = 1 }, .{});
     const v = MeterF.Vec3{ .data = .{ 9.0, 6.0, 3.0 } };
 
-    const r = v.divByScalar(3.0);
+    const r = v.divScalar(3.0);
     try std.testing.expectApproxEqAbs(3.0, r.data[0], 1e-9);
     try std.testing.expectApproxEqAbs(2.0, r.data[1], 1e-9);
     try std.testing.expectApproxEqAbs(1.0, r.data[2], 1e-9);

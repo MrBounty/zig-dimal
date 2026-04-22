@@ -80,7 +80,7 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
 
     const Types = .{ i16, i32, i64, i128, i256, f32, f64 };
     const TNames = .{ "i16", "i32", "i64", "i128", "i256", "f32", "f64" };
-    const Ops = .{ "add", "sub", "mulBy", "divBy", "to", "abs", "pow", "eq", "gt", "mulBy(n)" };
+    const Ops = .{ "add", "sub", "mul", "div", "to", "abs", "pow", "eq", "gt", "mul(n)" };
 
     var results_matrix: [Ops.len][Types.len]f64 = undefined;
 
@@ -103,10 +103,10 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
                                 (M{ .value = getVal(T, i, 63) }).add(M{ .value = getVal(T, i +% 7, 63) })
                             else if (comptime std.mem.eql(u8, op_name, "sub"))
                                 (M{ .value = getVal(T, i +% 10, 63) }).sub(M{ .value = getVal(T, i, 63) })
-                            else if (comptime std.mem.eql(u8, op_name, "mulBy"))
-                                (M{ .value = getVal(T, i, 63) }).mulBy(M{ .value = getVal(T, i +% 1, 63) })
-                            else if (comptime std.mem.eql(u8, op_name, "divBy"))
-                                (M{ .value = getVal(T, i +% 10, 63) }).divBy(S{ .value = getVal(T, i, 63) })
+                            else if (comptime std.mem.eql(u8, op_name, "mul"))
+                                (M{ .value = getVal(T, i, 63) }).mul(M{ .value = getVal(T, i +% 1, 63) })
+                            else if (comptime std.mem.eql(u8, op_name, "div"))
+                                (M{ .value = getVal(T, i +% 10, 63) }).div(S{ .value = getVal(T, i, 63) })
                             else if (comptime std.mem.eql(u8, op_name, "to"))
                                 (KM{ .value = getVal(T, i, 15) }).to(M)
                             else if (comptime std.mem.eql(u8, op_name, "abs"))
@@ -115,8 +115,8 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
                                 (M{ .value = getVal(T, i, 63) }).eq(M{ .value = getVal(T, i +% 3, 63) })
                             else if (comptime std.mem.eql(u8, op_name, "gt"))
                                 (M{ .value = getVal(T, i, 63) }).gt(M{ .value = getVal(T, i +% 3, 63) })
-                            else // "mulBy(n)" — bare comptime_int, dimensionless
-                                (M{ .value = getVal(T, i, 63) }).mulBy(3);
+                            else
+                                (M{ .value = getVal(T, i, 63) }).mul(3);
                         },
                     );
                 }
@@ -171,7 +171,7 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
 
     const Types = .{ i32, i64, i128, f32, f64 };
     const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
-    const Ops = .{ "add", "mulBy", "divBy" };
+    const Ops = .{ "add", "mul", "div" };
 
     try writer.print(
         \\
@@ -200,7 +200,7 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
                         const b = getValT(T, 2);
                         _ = if (comptime std.mem.eql(u8, op_name, "add"))
                             a + b
-                        else if (comptime std.mem.eql(u8, op_name, "mulBy"))
+                        else if (comptime std.mem.eql(u8, op_name, "mul"))
                             a * b
                         else if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b;
                     }
@@ -211,14 +211,14 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
                     const q_start = getTime();
                     for (0..ITERS) |i| {
                         const qa = M{ .value = getValT(T, i) };
-                        const qb = if (comptime std.mem.eql(u8, op_name, "divBy")) S{ .value = getValT(T, 2) } else M{ .value = getValT(T, 2) };
+                        const qb = if (comptime std.mem.eql(u8, op_name, "div")) S{ .value = getValT(T, 2) } else M{ .value = getValT(T, 2) };
 
                         _ = if (comptime std.mem.eql(u8, op_name, "add"))
                             qa.add(qb)
-                        else if (comptime std.mem.eql(u8, op_name, "mulBy"))
-                            qa.mulBy(qb)
+                        else if (comptime std.mem.eql(u8, op_name, "mul"))
+                            qa.mul(qb)
                         else
-                            qa.divBy(qb);
+                            qa.div(qb);
                     }
                     const q_end = getTime();
                     quantity_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
@@ -268,7 +268,7 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
 
     const Types = .{ i16, i64, i128, f32, f64 };
     const TNames = .{ "i16", "i64", "i128", "f32", "f64" };
-    const Ops = .{ "add", "mulBy", "divBy" };
+    const Ops = .{ "add", "mul", "div" };
 
     try writer.print(
         \\
@@ -301,7 +301,7 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
 
                             _ = if (comptime std.mem.eql(u8, op_name, "add"))
                                 a + b
-                            else if (comptime std.mem.eql(u8, op_name, "mulBy"))
+                            else if (comptime std.mem.eql(u8, op_name, "mul"))
                                 a * b
                             else if (comptime @typeInfo(T1) == .int)
                                 @divTrunc(a, b)
@@ -315,17 +315,17 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
                         const q_start = getTime();
                         for (0..ITERS) |i| {
                             const qa = M1{ .value = getValT(T1, i) };
-                            const qb = if (comptime std.mem.eql(u8, op_name, "divBy"))
+                            const qb = if (comptime std.mem.eql(u8, op_name, "div"))
                                 S2{ .value = getValT(T2, 2) }
                             else
                                 M2{ .value = getValT(T2, 2) };
 
                             _ = if (comptime std.mem.eql(u8, op_name, "add"))
                                 qa.add(qb)
-                            else if (comptime std.mem.eql(u8, op_name, "mulBy"))
-                                qa.mulBy(qb)
+                            else if (comptime std.mem.eql(u8, op_name, "mul"))
+                                qa.mul(qb)
                             else
-                                qa.divBy(qb);
+                                qa.div(qb);
                         }
                         const q_end = getTime();
                         quantity_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
@@ -387,7 +387,7 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
     const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
     const Lengths = .{ 3, 4, 16 };
     // "cross" is only valid for len=3; other cells will show "  ---  "
-    const Ops = .{ "add", "divBy", "mulByScalar", "dot", "cross", "product", "pow", "length" };
+    const Ops = .{ "add", "div", "mulScalar", "dot", "cross", "product", "pow", "length" };
 
     inline for (Ops, 0..) |op_name, o_idx| {
         inline for (Types, TNames) |T, tname| {
@@ -416,11 +416,11 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
                             if (comptime std.mem.eql(u8, op_name, "add")) {
                                 const v2 = V.initDefault(getVal(T, i +% 7, 63));
                                 _ = v1.add(v2);
-                            } else if (comptime std.mem.eql(u8, op_name, "divBy")) {
-                                _ = v1.divBy(V.initDefault(getVal(T, i +% 2, 63)));
-                            } else if (comptime std.mem.eql(u8, op_name, "mulByScalar")) {
+                            } else if (comptime std.mem.eql(u8, op_name, "div")) {
+                                _ = v1.div(V.initDefault(getVal(T, i +% 2, 63)));
+                            } else if (comptime std.mem.eql(u8, op_name, "mulScalar")) {
                                 const s_val = Q_time{ .value = getVal(T, i +% 2, 63) };
-                                _ = v1.mulByScalar(s_val);
+                                _ = v1.mulScalar(s_val);
                             } else if (comptime std.mem.eql(u8, op_name, "dot")) {
                                 const v2 = V.initDefault(getVal(T, i +% 5, 63));
                                 _ = v1.dot(v2);

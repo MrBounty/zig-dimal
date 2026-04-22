@@ -3,6 +3,17 @@ const hlp = @import("helper.zig");
 const Dimensions = @import("Dimensions.zig");
 const Dimension = @import("Dimensions.zig").Dimension;
 
+/// Use to initiate Scalar and Scales type
+pub const ArgOpts = struct {
+    L: UnitScale = .none,
+    M: UnitScale = .none,
+    T: UnitScale = .none,
+    I: UnitScale = .none,
+    Tp: UnitScale = .none,
+    N: UnitScale = .none,
+    J: UnitScale = .none,
+};
+
 /// SI prefix (pico…peta) plus time-unit aliases (min, hour, year).
 /// The integer value encodes the exponent for SI prefixes (e.g. `k = 3` → 10³),
 /// and the literal factor for time units (e.g. `hour = 3600`).
@@ -62,9 +73,9 @@ const Scales = @This();
 
 data: std.EnumArray(Dimension, UnitScale),
 
-/// Create a `Scales` from an anonymous struct literal, e.g. `.{ .L = .k, .T = .hour }`.
+/// Create a `Scales` from a struct literal, e.g. `.{ .L = .k, .T = .hour }`.
 /// Unspecified dimensions default to `.none` (factor 1).
-pub fn init(comptime init_val: anytype) Scales {
+pub fn init(comptime init_val: ArgOpts) Scales {
     comptime var s = Scales{ .data = std.EnumArray(Dimension, UnitScale).initFill(.none) };
     inline for (std.meta.fields(@TypeOf(init_val))) |f| {
         if (comptime hlp.isInt(@TypeOf(@field(init_val, f.name))))

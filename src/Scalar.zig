@@ -7,12 +7,17 @@ const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
-// TODO: Be able to use comptime float and int and T for mulBy ect
-// Which endup being Dimension less
+// TODO:
+//  - Be able to use comptime float and int and T for mulBy ect
+//  Which endup being Dimension less
 
 /// A dimensioned scalar value. `T` is the numeric type, `d` the dimension exponents, `s` the SI scales.
 /// All dimension and unit tracking is resolved at comptime — zero runtime overhead.
-pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
+pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_opt: Scales.ArgOpts) type {
+    return Scalar_(T, Dimensions.init(d_opt), Scales.init(s_opt));
+}
+
+pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
     @setEvalBranchQuota(10_000_000);
     return struct {
         value: T,
@@ -33,7 +38,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
 
         /// Add two quantities. Dimensions must match — compile error otherwise.
         /// Scales are auto-resolved to the finer of the two.
-        pub inline fn add(self: Self, rhs: anytype) Scalar(
+        pub inline fn add(self: Self, rhs: anytype) Scalar_(
             T,
             dims,
             hlp.finerScales(Self, @TypeOf(rhs)),
@@ -43,7 +48,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             if (comptime @TypeOf(rhs) == Self)
                 return .{ .value = self.value + rhs.value };
 
-            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -52,7 +57,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
 
         /// Subtract two quantities. Dimensions must match — compile error otherwise.
         /// Scales are auto-resolved to the finer of the two.
-        pub inline fn sub(self: Self, rhs: anytype) Scalar(
+        pub inline fn sub(self: Self, rhs: anytype) Scalar_(
             T,
             dims,
             hlp.finerScales(Self, @TypeOf(rhs)),
@@ -62,7 +67,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             if (comptime @TypeOf(rhs) == Self)
                 return .{ .value = self.value - rhs.value };
 
-            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -70,14 +75,14 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
         }
 
         /// Multiply two quantities. Dimension exponents are summed: `L¹ * T⁻¹ → L¹T⁻¹`.
-        pub inline fn mulBy(self: Self, rhs: anytype) Scalar(
+        pub inline fn mulBy(self: Self, rhs: anytype) Scalar_(
             T,
             dims.add(@TypeOf(rhs).dims),
             hlp.finerScales(Self, @TypeOf(rhs)),
         ) {
             const RhsType = @TypeOf(rhs);
-            const SelfNorm = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const RhsNorm = Scalar(T, RhsType.dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const SelfNorm = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const RhsNorm = Scalar_(T, RhsType.dims, hlp.finerScales(Self, @TypeOf(rhs)));
             if (comptime Self == SelfNorm and RhsType == RhsNorm)
                 return .{ .value = self.value * rhs.value };
 
@@ -88,14 +93,14 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
 
         /// Divide two quantities. Dimension exponents are subtracted: `L¹ / T¹ → L¹T⁻¹`.
         /// Integer types use truncating division.
-        pub inline fn divBy(self: Self, rhs: anytype) Scalar(
+        pub inline fn divBy(self: Self, rhs: anytype) Scalar_(
             T,
             dims.sub(@TypeOf(rhs).dims),
             hlp.finerScales(Self, @TypeOf(rhs)),
         ) {
             const RhsType = @TypeOf(rhs);
-            const SelfNorm = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const RhsNorm = Scalar(T, RhsType.dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const SelfNorm = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const RhsNorm = Scalar_(T, RhsType.dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
             const rhs_val = if (comptime RhsType == RhsNorm) rhs.value else rhs.to(RhsNorm).value;
             if (comptime @typeInfo(T) == .int) {
@@ -116,7 +121,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
 
         /// Raises the quantity to a compile-time integer exponent.
         /// Dimension exponents are multiplied by the exponent: `(L²)³ → L⁶`.
-        pub inline fn pow(self: Self, comptime exp: comptime_int) Scalar(
+        pub inline fn pow(self: Self, comptime exp: comptime_int) Scalar_(
             T,
             dims.scale(exp),
             s,
@@ -127,7 +132,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
                 return .{ .value = std.math.pow(T, self.value, @as(T, @floatFromInt(exp))) };
         }
 
-        pub inline fn sqrt(self: Self) Scalar(
+        pub inline fn sqrt(self: Self) Scalar_(
             T,
             dims.div(2),
             s,
@@ -196,7 +201,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             if (comptime @TypeOf(rhs) == Self)
                 return self.value == rhs.value;
 
-            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -211,7 +216,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             if (comptime @TypeOf(rhs) == Self)
                 return self.value != rhs.value;
 
-            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -226,7 +231,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             if (comptime @TypeOf(rhs) == Self)
                 return self.value > rhs.value;
 
-            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -240,7 +245,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             if (comptime @TypeOf(rhs) == Self)
                 return self.value >= rhs.value;
 
-            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -255,7 +260,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             if (comptime @TypeOf(rhs) == Self)
                 return self.value < rhs.value;
 
-            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -269,7 +274,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             if (comptime @TypeOf(rhs) == Self)
                 return self.value <= rhs.value;
 
-            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
             const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
 
@@ -329,8 +334,8 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
 }
 
 test "Generate quantity" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = -3 }));
-    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{ .T = .n }));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{ .L = @enumFromInt(-3) });
+    const Second = Scalar(f32, .{ .T = 1 }, .{ .T = .n });
 
     const distance = Meter{ .value = 10 };
     const time = Second{ .value = 2 };
@@ -340,8 +345,8 @@ test "Generate quantity" {
 }
 
 test "Comparisons (eq, ne, gt, gte, lt, lte)" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const KiloMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const KiloMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
 
     const m1000 = Meter{ .value = 1000 };
     const km1 = KiloMeter{ .value = 1 };
@@ -366,7 +371,7 @@ test "Comparisons (eq, ne, gt, gte, lt, lte)" {
 }
 
 test "Add" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
 
     const distance = Meter{ .value = 10 };
     const distance2 = Meter{ .value = 20 };
@@ -375,7 +380,7 @@ test "Add" {
     try std.testing.expectEqual(30, added.value);
     try std.testing.expectEqual(1, @TypeOf(added).dims.get(.L));
 
-    const KiloMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const KiloMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
     const distance3 = KiloMeter{ .value = 2 };
     const added2 = distance.add(distance3);
     try std.testing.expectEqual(2010, added2.value);
@@ -385,7 +390,7 @@ test "Add" {
     try std.testing.expectEqual(2, added3.value);
     try std.testing.expectEqual(1, @TypeOf(added3).dims.get(.L));
 
-    const KiloMeter_f = Scalar(f64, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const KiloMeter_f = Scalar(f64, .{ .L = 1 }, .{ .L = .k });
     const distance4 = KiloMeter_f{ .value = 2 };
     const added4 = distance4.add(distance).to(KiloMeter_f);
     try std.testing.expectApproxEqAbs(2.01, added4.value, 0.000001);
@@ -393,8 +398,8 @@ test "Add" {
 }
 
 test "Sub" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const KiloMeter_f = Scalar(f64, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const KiloMeter_f = Scalar(f64, .{ .L = 1 }, .{ .L = .k });
 
     const a = Meter{ .value = 500 };
     const b = Meter{ .value = 200 };
@@ -410,8 +415,8 @@ test "Sub" {
 }
 
 test "MulBy" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const Second = Scalar(f32, .{ .T = 1 }, .{});
 
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
@@ -429,8 +434,8 @@ test "MulBy" {
 }
 
 test "MulBy with scale" {
-    const KiloMeter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const KiloGram = Scalar(f32, Dimensions.init(.{ .M = 1 }), Scales.init(.{ .M = .k }));
+    const KiloMeter = Scalar(f32, .{ .L = 1 }, .{ .L = .k });
+    const KiloGram = Scalar(f32, .{ .M = 1 }, .{ .M = .k });
 
     const dist = KiloMeter{ .value = 2.0 };
     const mass = KiloGram{ .value = 3.0 };
@@ -440,10 +445,10 @@ test "MulBy with scale" {
 }
 
 test "MulBy with type change" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const Second = Scalar(f64, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
-    const KmSec = Scalar(i64, Dimensions.init(.{ .L = 1, .T = 1 }), Scales.init(.{ .L = .k }));
-    const KmSec_f = Scalar(f32, Dimensions.init(.{ .L = 1, .T = 1 }), Scales.init(.{ .L = .k }));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
+    const Second = Scalar(f64, .{ .T = 1 }, .{});
+    const KmSec = Scalar(i64, .{ .L = 1, .T = 1 }, .{ .L = .k });
+    const KmSec_f = Scalar(f32, .{ .L = 1, .T = 1 }, .{ .L = .k });
 
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
@@ -457,8 +462,8 @@ test "MulBy with type change" {
 }
 
 test "MulBy small" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .n }));
-    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{ .L = .n });
+    const Second = Scalar(f32, .{ .T = 1 }, .{});
 
     const d = Meter{ .value = 3.0 };
     const t = Second{ .value = 4.0 };
@@ -470,8 +475,8 @@ test "MulBy small" {
 }
 
 test "MulBy dimensionless" {
-    const DimLess = Scalar(i128, Dimensions.init(.{}), Scales.init(.{}));
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const DimLess = Scalar(i128, .{}, .{});
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
 
     const d = Meter{ .value = 7 };
     const scaled = d.mulBy(DimLess{ .value = 3 });
@@ -480,7 +485,7 @@ test "MulBy dimensionless" {
 }
 
 test "Sqrt" {
-    const MeterSquare = Scalar(i128, Dimensions.init(.{ .L = 2 }), Scales.init(.{}));
+    const MeterSquare = Scalar(i128, .{ .L = 2 }, .{});
 
     var d = MeterSquare{ .value = 9 };
     var scaled = d.sqrt();
@@ -492,7 +497,7 @@ test "Sqrt" {
     try std.testing.expectEqual(0, scaled.value);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
 
-    const MeterSquare_f = Scalar(f64, Dimensions.init(.{ .L = 2 }), Scales.init(.{}));
+    const MeterSquare_f = Scalar(f64, .{ .L = 2 }, .{});
     const d2 = MeterSquare_f{ .value = 20 };
     const scaled2 = d2.sqrt();
     try std.testing.expectApproxEqAbs(4.472135955, scaled2.value, 1e-4);
@@ -500,8 +505,8 @@ test "Sqrt" {
 }
 
 test "Chained: velocity and acceleration" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const Second = Scalar(f32, .{ .T = 1 }, .{});
 
     const dist = Meter{ .value = 100.0 };
     const t1 = Second{ .value = 5.0 };
@@ -518,8 +523,8 @@ test "Chained: velocity and acceleration" {
 }
 
 test "DivBy integer exact" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Scalar(f32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const Second = Scalar(f32, .{ .T = 1 }, .{});
 
     const dist = Meter{ .value = 120 };
     const time = Second{ .value = 4 };
@@ -531,8 +536,8 @@ test "DivBy integer exact" {
 }
 
 test "Finer scales skip dim 0" {
-    const Dimless = Scalar(i128, Dimensions.init(.{}), Scales.init(.{}));
-    const KiloMetre = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const Dimless = Scalar(i128, .{}, .{});
+    const KiloMetre = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
 
     const r = Dimless{ .value = 30 };
     const time = KiloMetre{ .value = 4 };
@@ -543,9 +548,9 @@ test "Finer scales skip dim 0" {
 }
 
 test "Conversion chain: km -> m -> cm" {
-    const KiloMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const CentiMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .c }));
+    const KiloMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const CentiMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .c });
 
     const km = KiloMeter{ .value = 15 };
     const m = km.to(Meter);
@@ -556,9 +561,9 @@ test "Conversion chain: km -> m -> cm" {
 }
 
 test "Conversion: hours -> minutes -> seconds" {
-    const Hour = Scalar(i128, Dimensions.init(.{ .T = 1 }), Scales.init(.{ .T = .hour }));
-    const Minute = Scalar(i128, Dimensions.init(.{ .T = 1 }), Scales.init(.{ .T = .min }));
-    const Second = Scalar(i128, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Hour = Scalar(i128, .{ .T = 1 }, .{ .T = .hour });
+    const Minute = Scalar(i128, .{ .T = 1 }, .{ .T = .min });
+    const Second = Scalar(i128, .{ .T = 1 }, .{});
 
     const h = Hour{ .value = 1.0 };
     const min = h.to(Minute);
@@ -569,7 +574,7 @@ test "Conversion: hours -> minutes -> seconds" {
 }
 
 test "Negative values" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
 
     const a = Meter{ .value = 5 };
     const b = Meter{ .value = 20 };
@@ -578,17 +583,9 @@ test "Negative values" {
 }
 
 test "Format Scalar" {
-    const MeterPerSecondSq = Scalar(
-        f32,
-        Dimensions.init(.{ .L = 1, .T = -2 }),
-        Scales.init(.{ .T = .n }),
-    );
-    const KgMeterPerSecond = Scalar(
-        f32,
-        Dimensions.init(.{ .M = 1, .L = 1, .T = -1 }),
-        Scales.init(.{ .M = .k }),
-    );
-    const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const MeterPerSecondSq = Scalar(f32, .{ .L = 1, .T = -2 }, .{ .T = .n });
+    const KgMeterPerSecond = Scalar(f32, .{ .M = 1, .L = 1, .T = -1 }, .{ .M = .k });
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
 
     const m = Meter{ .value = 1.23456 };
     const accel = MeterPerSecondSq{ .value = 9.81 };
@@ -609,20 +606,20 @@ test "Format Scalar" {
 }
 
 test "Abs" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const m1 = Meter{ .value = -50 };
     const m2 = m1.abs();
 
     try std.testing.expectEqual(50, m2.value);
     try std.testing.expectEqual(1, @TypeOf(m2).dims.get(.L));
 
-    const m_float = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const m_float = Scalar(f32, .{ .L = 1 }, .{});
     const m3 = m_float{ .value = -42.5 };
     try std.testing.expectEqual(42.5, m3.abs().value);
 }
 
 test "Pow" {
-    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const d = Meter{ .value = 4 };
 
     const area = d.pow(2);
@@ -634,7 +631,7 @@ test "Pow" {
     try std.testing.expectEqual(3, @TypeOf(volume).dims.get(.L));
 
     // Float test
-    const MeterF = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const MeterF = Scalar(f32, .{ .L = 1 }, .{});
     const d_f = MeterF{ .value = 2.0 };
     const area_f = d_f.pow(3);
     try std.testing.expectEqual(8.0, area_f.value);

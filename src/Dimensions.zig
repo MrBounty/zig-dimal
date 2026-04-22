@@ -1,5 +1,15 @@
 const std = @import("std");
 
+pub const ArgOpts = struct {
+    L: comptime_int = 0,
+    M: comptime_int = 0,
+    T: comptime_int = 0,
+    I: comptime_int = 0,
+    Tp: comptime_int = 0,
+    N: comptime_int = 0,
+    J: comptime_int = 0,
+};
+
 pub const Dimension = enum {
     /// Length
     L,
@@ -37,9 +47,9 @@ const Self = @This();
 
 data: std.EnumArray(Dimension, comptime_int),
 
-/// Create a `Dimensions` from an anonymous struct literal, e.g. `.{ .L = 1, .T = -1 }`.
+/// Create a `Dimensions` from a struct literal, e.g. `.{ .L = 1, .T = -1 }`.
 /// Unspecified dimensions default to 0.
-pub fn init(comptime init_val: anytype) Self {
+pub fn init(comptime init_val: ArgOpts) Self {
     var s = Self{ .data = std.EnumArray(Dimension, comptime_int).initFill(0) };
     inline for (std.meta.fields(@TypeOf(init_val))) |f|
         s.data.set(@field(Dimension, f.name), @field(init_val, f.name));

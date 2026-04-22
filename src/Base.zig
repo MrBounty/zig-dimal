@@ -5,22 +5,32 @@ const Dimensions = @import("Dimensions.zig");
 const Scales = @import("Scales.zig");
 const Scalar = @import("Scalar.zig").Scalar;
 
-/// Helper function to create a clean namespace for each physical dimension.
-/// It exposes the raw dimensions, and easy type-creators for Base or Scaled variants.
-pub fn BaseScalar(comptime d: anytype) type {
+fn PhysicalConstant(comptime d: Dimensions.ArgOpts, comptime val: f64, comptime s: Scales.ArgOpts) type {
     return struct {
-        pub const dims = Dimensions.init(d);
+        const dims = Dimensions.init(d);
+        const scales = Scales.init(s);
+
+        /// Instantiates the constant into a specific numeric type.
+        pub fn Of(comptime T: type) Scalar(T, d, s) {
+            return .{ .value = @as(T, @floatCast(val)) };
+        }
+    };
+}
+
+fn BaseScalar(comptime d: Dimensions.ArgOpts) type {
+    return struct {
+        const dims = Dimensions.init(d);
 
         /// Creates a Scalar of this dimension using default scales.
         /// Example: const V = Quantities.Velocity.Base(f32);
         pub fn Of(comptime T: type) type {
-            return Scalar(T, dims, Scales.init(.{}));
+            return Scalar(T, d, .{});
         }
 
         /// Creates a Scalar of this dimension using custom scales.
         /// Example: const Kmh = Quantities.Velocity.Scaled(f32, Scales.init(.{ .L = .k, .T = .hour }));
-        pub fn Scaled(comptime T: type, comptime s: Scales) type {
-            return Scalar(T, dims, s);
+        pub fn Scaled(comptime T: type, comptime s: Scales.ArgOpts) type {
+            return Scalar(T, d, s);
         }
     };
 }
@@ -95,6 +105,31 @@ pub const Frequency = BaseScalar(.{ .T = -1 });
 pub const Viscosity = BaseScalar(.{ .M = 1, .L = -1, .T = -1 });
 pub const SurfaceTension = BaseScalar(.{ .M = 1, .T = -2 }); // Corrected from MT-2a
 
+// ==========================================
+// Physical Constants
+// ==========================================
+pub const Constants = struct {
+    /// Speed of light in vacuum
+    pub const c = Speed.Constant(299792458.0, Scales.init(.{}));
+
+    /// Standard gravity
+    pub const g = Acceleration.Constant(9.80665, Scales.init(.{}));
+
+    /// Newton's Gravitational Constant: L³ M⁻¹ T⁻²
+    pub const GravitationalConstant = PhysicalConstant(
+        .{ .L = 3, .M = -1, .T = -2 },
+        6.67430e-11,
+        Scales.init(.{}),
+    );
+
+    /// Planck Constant: M L² T⁻¹
+    pub const Planck = PhysicalConstant(
+        .{ .M = 1, .L = 2, .T = -1 },
+        6.62607015e-34,
+        Scales.init(.{}),
+    );
+};
+
 test "BaseQuantities - Core dimensions instantiation" {
     // Basic types via generic wrappers
     const M = Meter.Of(f32);
@@ -104,7 +139,7 @@ test "BaseQuantities - Core dimensions instantiation" {
     try std.testing.expectEqual(0, M.dims.get(.T));
 
     // Test specific scale variants
-    const Kmh = Speed.Scaled(f32, Scales.init(.{ .L = .k, .T = .hour }));
+    const Kmh = Speed.Scaled(f32, .{ .L = .k, .T = .hour });
     const speed = Kmh{ .value = 120.0 };
     try std.testing.expectEqual(120.0, speed.value);
     try std.testing.expectEqual(.k, @TypeOf(speed).scales.get(.L));
@@ -128,7 +163,7 @@ test "BaseQuantities - Kinematics equations" {
 
 test "BaseQuantities - Dynamics (Force and Work)" {
     // 10 kg
-    const m = Gramm.Scaled(f32, Scales.init(.{ .M = .k })){ .value = 10.0 };
+    const m = Gramm.Scaled(f32, .{ .M = .k }){ .value = 10.0 };
     // 9.8 m/s^2
     const a = Acceleration.Of(f32){ .value = 9.8 };
 

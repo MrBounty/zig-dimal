@@ -2,6 +2,7 @@ const std = @import("std");
 const hlp = @import("helper.zig");
 
 const Scalar = @import("Scalar.zig").Scalar;
+const Scalar_ = @import("Scalar.zig").Scalar_;
 const Scales = @import("Scales.zig");
 const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
@@ -32,13 +33,13 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         }
 
         /// Element-wise addition. Dimensions must match; scales resolve to the finer of the two.
-        pub inline fn add(self: Self, rhs: anytype) Vector(len, Scalar(
+        pub inline fn add(self: Self, rhs: anytype) Vector(len, Scalar_(
             T,
             dims,
             hlp.finerScales(Self, @TypeOf(rhs)),
         )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar(T, d, hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
+            var res: Vector(len, Scalar_(T, d, hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).add(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -46,13 +47,13 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
         /// Element-wise subtraction. Dimensions must match; scales resolve to the finer of the two.
-        pub inline fn sub(self: Self, rhs: anytype) Vector(len, Scalar(
+        pub inline fn sub(self: Self, rhs: anytype) Vector(len, Scalar_(
             T,
             dims,
             hlp.finerScales(Self, @TypeOf(rhs)),
         )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar(T, d, hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
+            var res: Vector(len, Scalar_(T, d, hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).sub(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -64,13 +65,13 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn divBy(
             self: Self,
             rhs: anytype,
-        ) Vector(len, Scalar(
+        ) Vector(len, Scalar_(
             T,
             dims.sub(@TypeOf(rhs).dims),
             hlp.finerScales(Self, @TypeOf(rhs)),
         )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar(T, d.sub(Tr.dims), hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
+            var res: Vector(len, Scalar_(T, d.sub(Tr.dims), hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).divBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -82,13 +83,13 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn mulBy(
             self: Self,
             rhs: anytype,
-        ) Vector(len, Scalar(
+        ) Vector(len, Scalar_(
             T,
             dims.add(@TypeOf(rhs).dims),
             hlp.finerScales(Self, @TypeOf(rhs)),
         )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar(T, d.add(Tr.dims), hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
+            var res: Vector(len, Scalar_(T, d.add(Tr.dims), hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).mulBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -100,12 +101,12 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn divByScalar(
             self: Self,
             scalar: anytype,
-        ) Vector(len, Scalar(
+        ) Vector(len, Scalar_(
             T,
             dims.sub(@TypeOf(scalar).dims),
             hlp.finerScales(Self, @TypeOf(scalar)),
         )) {
-            var res: Vector(len, Scalar(T, d.sub(@TypeOf(scalar).dims), hlp.finerScales(Self, @TypeOf(scalar)))) = undefined;
+            var res: Vector(len, Scalar_(T, d.sub(@TypeOf(scalar).dims), hlp.finerScales(Self, @TypeOf(scalar)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.divBy(scalar).value;
@@ -117,12 +118,12 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn mulByScalar(
             self: Self,
             scalar: anytype,
-        ) Vector(len, Scalar(
+        ) Vector(len, Scalar_(
             T,
             dims.add(@TypeOf(scalar).dims),
             hlp.finerScales(Self, @TypeOf(scalar)),
         )) {
-            var res: Vector(len, Scalar(T, d.add(@TypeOf(scalar).dims), hlp.finerScales(Self, @TypeOf(scalar)))) = undefined;
+            var res: Vector(len, Scalar_(T, d.add(@TypeOf(scalar).dims), hlp.finerScales(Self, @TypeOf(scalar)))) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.mulBy(scalar).value;
@@ -132,7 +133,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         /// Standard dot product. Dimensions are summed (e.g., Force * Distance = Energy).
         /// Returns a Scalar type with the combined dimensions and finest scale.
-        pub inline fn dot(self: Self, rhs: anytype) Scalar(
+        pub inline fn dot(self: Self, rhs: anytype) Scalar_(
             T,
             dims.add(@TypeOf(rhs).dims),
             hlp.finerScales(Self, @TypeOf(rhs)),
@@ -150,7 +151,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         /// 3D Cross product. Dimensions are summed.
         /// Only valid for vectors of length 3.
-        pub inline fn cross(self: Self, rhs: anytype) Vector(3, Scalar(
+        pub inline fn cross(self: Self, rhs: anytype) Vector(3, Scalar_(
             T,
             dims.add(@TypeOf(rhs).dims),
             hlp.finerScales(Self, @TypeOf(rhs)),
@@ -159,7 +160,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
                 @compileError("Cross product is only defined for Vector(3, ...)");
 
             const Tr = @TypeOf(rhs);
-            const ResScalar = Scalar(T, d.add(Tr.dims), hlp.finerScales(Self, Tr));
+            const ResScalar = Scalar_(T, d.add(Tr.dims), hlp.finerScales(Self, Tr));
             const ResVec = Vector(3, ResScalar);
 
             // Calculation: [y1*z2 - z1*y2, z1*x2 - x1*z2, x1*y2 - y1*x2]
@@ -202,7 +203,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         /// Multiplies all components of the vector together.
         /// Resulting dimensions are (Original Dims * len).
-        pub inline fn product(self: Self) Scalar(
+        pub inline fn product(self: Self) Scalar_(
             T,
             dims.scale(len),
             scales,
@@ -215,12 +216,12 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         /// Raises every component to a compile-time integer power.
         /// Dimensions are scaled by the exponent.
-        pub inline fn pow(self: Self, comptime exp: comptime_int) Vector(len, Scalar(
+        pub inline fn pow(self: Self, comptime exp: comptime_int) Vector(len, Scalar_(
             T,
             dims.scale(exp),
             scales,
         )) {
-            const ResScalar = Scalar(T, dims.scale(exp), s);
+            const ResScalar = Scalar_(T, dims.scale(exp), s);
             var res: Vector(len, ResScalar) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
@@ -436,16 +437,8 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 }
 
 test "Format VectorX" {
-    const MeterPerSecondSq = Scalar(
-        f32,
-        Dimensions.init(.{ .L = 1, .T = -2 }),
-        Scales.init(.{ .T = .n }),
-    );
-    const KgMeterPerSecond = Scalar(
-        f32,
-        Dimensions.init(.{ .M = 1, .L = 1, .T = -1 }),
-        Scales.init(.{ .M = .k }),
-    );
+    const MeterPerSecondSq = Scalar(f32, .{ .L = 1, .T = -2 }, .{ .T = .n });
+    const KgMeterPerSecond = Scalar(f32, .{ .M = 1, .L = 1, .T = -1 }, .{ .M = .k });
 
     const accel = MeterPerSecondSq.Vec3.initDefault(9.81);
     const momentum = KgMeterPerSecond.Vec3{ .data = .{ 43, 0, 11 } };
@@ -459,7 +452,7 @@ test "Format VectorX" {
 }
 
 test "VecX Init and Basic Arithmetic" {
-    const Meter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
     const Vec3M = Meter.Vec3;
 
     // Test zero, one, initDefault
@@ -500,8 +493,8 @@ test "VecX Init and Basic Arithmetic" {
 }
 
 test "VecX Kinematics (Scalar Mul/Div)" {
-    const Meter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Second = Scalar(i32, Dimensions.init(.{ .T = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
+    const Second = Scalar(i32, .{ .T = 1 }, .{});
     const Vec3M = Meter.Vec3;
 
     const pos = Vec3M{ .data = .{ 100, 200, 300 } };
@@ -525,7 +518,7 @@ test "VecX Kinematics (Scalar Mul/Div)" {
 }
 
 test "VecX Element-wise Math and Scaling" {
-    const Meter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
     const Vec3M = Meter.Vec3;
 
     const v1 = Vec3M{ .data = .{ 10, 20, 30 } };
@@ -540,8 +533,8 @@ test "VecX Element-wise Math and Scaling" {
 }
 
 test "VecX Conversions" {
-    const KiloMeter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
-    const Meter = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const KiloMeter = Scalar(i32, .{ .L = 1 }, .{ .L = .k });
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
 
     const v_km = KiloMeter.Vec3{ .data = .{ 1, 2, 3 } };
     const v_m = v_km.to(Meter);
@@ -556,8 +549,8 @@ test "VecX Conversions" {
 }
 
 test "VecX Length" {
-    const MeterInt = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const MeterFloat = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const MeterInt = Scalar(i32, .{ .L = 1 }, .{});
+    const MeterFloat = Scalar(f32, .{ .L = 1 }, .{});
 
     // Integer length
     // 3-4-5 triangle on XY plane
@@ -572,8 +565,8 @@ test "VecX Length" {
 }
 
 test "Vector Comparisons" {
-    const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const KiloMeter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
+    const KiloMeter = Scalar(f32, .{ .L = 1 }, .{ .L = .k });
 
     const v1 = Meter.Vec3{ .data = .{ 1000.0, 500.0, 0.0 } };
     const v2 = KiloMeter.Vec3{ .data = .{ 1.0, 0.5, 0.0 } };
@@ -601,8 +594,8 @@ test "Vector Comparisons" {
 }
 
 test "Vector vs Scalar Comparisons" {
-    const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const KiloMeter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
+    const KiloMeter = Scalar(f32, .{ .L = 1 }, .{ .L = .k });
 
     const positions = Meter.Vec3{ .data = .{ 500.0, 1200.0, 3000.0 } };
     const threshold = KiloMeter{ .value = 1.0 }; // 1km (1000m)
@@ -621,8 +614,8 @@ test "Vector vs Scalar Comparisons" {
 }
 
 test "Vector Dot and Cross Products" {
-    const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
-    const Newton = Scalar(f32, Dimensions.init(.{ .M = 1, .L = 1, .T = -2 }), Scales.init(.{}));
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
+    const Newton = Scalar(f32, .{ .M = 1, .L = 1, .T = -2 }, .{});
 
     const pos = Meter.Vec3{ .data = .{ 10.0, 0.0, 0.0 } };
     const force = Newton.Vec3{ .data = .{ 5.0, 5.0, 0.0 } };
@@ -645,7 +638,7 @@ test "Vector Dot and Cross Products" {
 }
 
 test "Vector Abs, Pow, Sqrt and Product" {
-    const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
 
     const v1 = Meter.Vec3{ .data = .{ -2.0, 3.0, -4.0 } };
 

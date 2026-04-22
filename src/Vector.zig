@@ -2,7 +2,6 @@ const std = @import("std");
 const hlp = @import("helper.zig");
 
 const Scalar = @import("Scalar.zig").Scalar;
-const Scalar_ = @import("Scalar.zig").Scalar_;
 const Scales = @import("Scales.zig");
 const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
@@ -33,13 +32,17 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         }
 
         /// Element-wise addition. Dimensions must match; scales resolve to the finer of the two.
-        pub inline fn add(self: Self, rhs: anytype) Vector(len, Scalar_(
+        pub inline fn add(self: Self, rhs: anytype) Vector(len, Scalar(
             T,
-            dims,
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            dims.argsOpt(),
+            hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
         )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar_(T, d, hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
+            var res: Vector(len, Scalar(
+                T,
+                dims.argsOpt(),
+                hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
+            )) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).add(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -47,13 +50,17 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
         /// Element-wise subtraction. Dimensions must match; scales resolve to the finer of the two.
-        pub inline fn sub(self: Self, rhs: anytype) Vector(len, Scalar_(
+        pub inline fn sub(self: Self, rhs: anytype) Vector(len, Scalar(
             T,
-            dims,
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            dims.argsOpt(),
+            hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
         )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar_(T, d, hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
+            var res: Vector(len, Scalar(
+                T,
+                dims.argsOpt(),
+                hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
+            )) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).sub(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -65,13 +72,17 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn divBy(
             self: Self,
             rhs: anytype,
-        ) Vector(len, Scalar_(
+        ) Vector(len, Scalar(
             T,
-            dims.sub(@TypeOf(rhs).dims),
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            dims.sub(@TypeOf(rhs).dims).argsOpt(),
+            hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
         )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar_(T, d.sub(Tr.dims), hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
+            var res: Vector(len, Scalar(
+                T,
+                d.sub(Tr.dims).argsOpt(),
+                hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
+            )) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).divBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -83,13 +94,17 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn mulBy(
             self: Self,
             rhs: anytype,
-        ) Vector(len, Scalar_(
+        ) Vector(len, Scalar(
             T,
-            dims.add(@TypeOf(rhs).dims),
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            dims.add(@TypeOf(rhs).dims).argsOpt(),
+            hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
         )) {
             const Tr = @TypeOf(rhs);
-            var res: Vector(len, Scalar_(T, d.add(Tr.dims), hlp.finerScales(Self, @TypeOf(rhs)))) = undefined;
+            var res: Vector(len, Scalar(
+                T,
+                dims.add(Tr.dims).argsOpt(),
+                hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
+            )) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = (Q{ .value = v }).mulBy(Tr.ScalarType{ .value = rhs.data[i] });
                 res.data[i] = q.value;
@@ -101,12 +116,16 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn divByScalar(
             self: Self,
             scalar: anytype,
-        ) Vector(len, Scalar_(
+        ) Vector(len, Scalar(
             T,
-            dims.sub(@TypeOf(scalar).dims),
-            hlp.finerScales(Self, @TypeOf(scalar)),
+            dims.sub(@TypeOf(scalar).dims).argsOpt(),
+            hlp.finerScales(Self, @TypeOf(scalar)).argsOpt(),
         )) {
-            var res: Vector(len, Scalar_(T, d.sub(@TypeOf(scalar).dims), hlp.finerScales(Self, @TypeOf(scalar)))) = undefined;
+            var res: Vector(len, Scalar(
+                T,
+                dims.sub(@TypeOf(scalar).dims).argsOpt(),
+                hlp.finerScales(Self, @TypeOf(scalar)).argsOpt(),
+            )) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.divBy(scalar).value;
@@ -118,12 +137,16 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         pub inline fn mulByScalar(
             self: Self,
             scalar: anytype,
-        ) Vector(len, Scalar_(
+        ) Vector(len, Scalar(
             T,
-            dims.add(@TypeOf(scalar).dims),
-            hlp.finerScales(Self, @TypeOf(scalar)),
+            dims.add(@TypeOf(scalar).dims).argsOpt(),
+            hlp.finerScales(Self, @TypeOf(scalar)).argsOpt(),
         )) {
-            var res: Vector(len, Scalar_(T, d.add(@TypeOf(scalar).dims), hlp.finerScales(Self, @TypeOf(scalar)))) = undefined;
+            var res: Vector(len, Scalar(
+                T,
+                dims.add(@TypeOf(scalar).dims).argsOpt(),
+                hlp.finerScales(Self, @TypeOf(scalar)).argsOpt(),
+            )) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };
                 res.data[i] = q.mulBy(scalar).value;
@@ -133,10 +156,10 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         /// Standard dot product. Dimensions are summed (e.g., Force * Distance = Energy).
         /// Returns a Scalar type with the combined dimensions and finest scale.
-        pub inline fn dot(self: Self, rhs: anytype) Scalar_(
+        pub inline fn dot(self: Self, rhs: anytype) Scalar(
             T,
-            dims.add(@TypeOf(rhs).dims),
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            dims.add(@TypeOf(rhs).dims).argsOpt(),
+            hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
         ) {
             const Tr = @TypeOf(rhs);
 
@@ -151,16 +174,16 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         /// 3D Cross product. Dimensions are summed.
         /// Only valid for vectors of length 3.
-        pub inline fn cross(self: Self, rhs: anytype) Vector(3, Scalar_(
+        pub inline fn cross(self: Self, rhs: anytype) Vector(3, Scalar(
             T,
-            dims.add(@TypeOf(rhs).dims),
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            dims.add(@TypeOf(rhs).dims).argsOpt(),
+            hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
         )) {
             if (comptime len != 3)
                 @compileError("Cross product is only defined for Vector(3, ...)");
 
             const Tr = @TypeOf(rhs);
-            const ResScalar = Scalar_(T, d.add(Tr.dims), hlp.finerScales(Self, Tr));
+            const ResScalar = Scalar(T, d.add(Tr.dims).argsOpt(), hlp.finerScales(Self, Tr).argsOpt());
             const ResVec = Vector(3, ResScalar);
 
             // Calculation: [y1*z2 - z1*y2, z1*x2 - x1*z2, x1*y2 - y1*x2]
@@ -203,10 +226,10 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         /// Multiplies all components of the vector together.
         /// Resulting dimensions are (Original Dims * len).
-        pub inline fn product(self: Self) Scalar_(
+        pub inline fn product(self: Self) Scalar(
             T,
-            dims.scale(len),
-            scales,
+            dims.scale(len).argsOpt(),
+            scales.argsOpt(),
         ) {
             var res_val: T = 1;
             inline for (self.data) |v|
@@ -216,12 +239,15 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
 
         /// Raises every component to a compile-time integer power.
         /// Dimensions are scaled by the exponent.
-        pub inline fn pow(self: Self, comptime exp: comptime_int) Vector(len, Scalar_(
-            T,
-            dims.scale(exp),
-            scales,
-        )) {
-            const ResScalar = Scalar_(T, dims.scale(exp), s);
+        pub inline fn pow(self: Self, comptime exp: comptime_int) Vector(
+            len,
+            Scalar(
+                T,
+                dims.scale(exp).argsOpt(),
+                scales.argsOpt(),
+            ),
+        ) {
+            const ResScalar = Scalar(T, dims.scale(exp).argsOpt(), scales.argsOpt());
             var res: Vector(len, ResScalar) = undefined;
             inline for (self.data, 0..) |v, i| {
                 const q = Q{ .value = v };

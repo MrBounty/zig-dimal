@@ -69,14 +69,14 @@ pub const UnitScale = enum(isize) {
 };
 
 /// Maps each SI base dimension to its `UnitScale`. Stored and resolved entirely at comptime.
-const Scales = @This();
+const Self = @This();
 
 data: std.EnumArray(Dimension, UnitScale),
 
 /// Create a `Scales` from a struct literal, e.g. `.{ .L = .k, .T = .hour }`.
 /// Unspecified dimensions default to `.none` (factor 1).
-pub fn init(comptime init_val: ArgOpts) Scales {
-    comptime var s = Scales{ .data = std.EnumArray(Dimension, UnitScale).initFill(.none) };
+pub fn init(comptime init_val: ArgOpts) Self {
+    comptime var s = Self{ .data = std.EnumArray(Dimension, UnitScale).initFill(.none) };
     inline for (std.meta.fields(@TypeOf(init_val))) |f| {
         if (comptime hlp.isInt(@TypeOf(@field(init_val, f.name))))
             s.data.set(@field(Dimension, f.name), @enumFromInt(@field(init_val, f.name)))
@@ -86,21 +86,28 @@ pub fn init(comptime init_val: ArgOpts) Scales {
     return s;
 }
 
-pub fn initFill(comptime val: UnitScale) Scales {
+pub fn initFill(comptime val: UnitScale) Self {
     return comptime .{ .data = std.EnumArray(Dimension, UnitScale).initFill(val) };
 }
 
-pub fn get(comptime self: Scales, comptime key: Dimension) UnitScale {
+pub fn get(comptime self: Self, comptime key: Dimension) UnitScale {
     return comptime self.data.get(key);
 }
 
-pub fn set(comptime self: *Scales, comptime key: Dimension, comptime val: UnitScale) void {
+pub fn set(comptime self: *Self, comptime key: Dimension, comptime val: UnitScale) void {
     comptime self.data.set(key, val);
+}
+
+pub fn argsOpt(self: Self) ArgOpts {
+    var args: ArgOpts = undefined;
+    inline for (std.enums.values(Dimension)) |d|
+        @field(args, @tagName(d)) = self.get(d);
+    return args;
 }
 
 /// Compute the combined scale factor for a given dimension signature.
 /// Each dimension's prefix is raised to its exponent and multiplied together.
-pub inline fn getFactor(comptime s: Scales, comptime d: Dimensions) comptime_float {
+pub inline fn getFactor(comptime s: Self, comptime d: Dimensions) comptime_float {
     var factor: f64 = 1.0;
     for (std.enums.values(Dimension)) |dim| {
         const power = comptime d.get(dim);

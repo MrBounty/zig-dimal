@@ -68,10 +68,17 @@ pub fn set(comptime self: *Self, comptime key: Dimension, comptime val: i8) void
     self.data.set(key, val);
 }
 
+pub fn argsOpt(self: Self) ArgOpts {
+    var args: ArgOpts = undefined;
+    inline for (std.enums.values(Dimension)) |d|
+        @field(args, @tagName(d)) = self.get(d);
+    return args;
+}
+
 /// Add exponents component-wise. Used internally by `mulBy`.
 pub fn add(comptime a: Self, comptime b: Self) Self {
     var result = Self.initFill(0);
-    for (std.enums.values(Dimension)) |d|
+    inline for (std.enums.values(Dimension)) |d|
         result.set(d, a.get(d) + b.get(d));
     return result;
 }

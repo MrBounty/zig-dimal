@@ -30,7 +30,7 @@ pub fn isScalarType(comptime T: type) bool {
 pub fn rhsScalarType(comptime BaseT: type, comptime RhsT: type) type {
     if (comptime isScalarType(RhsT)) return RhsT;
     if (comptime RhsT == comptime_int or RhsT == comptime_float or RhsT == BaseT)
-        return Scalar_(BaseT, Dimensions.init(.{}), Scales.init(.{}));
+        return Scalar(BaseT, .{}, .{});
     @compileError(
         "rhs must be a Scalar, " ++ @typeName(BaseT) ++
             ", comptime_int, or comptime_float; got " ++ @typeName(RhsT),
@@ -40,7 +40,7 @@ pub fn rhsScalarType(comptime BaseT: type, comptime RhsT: type) type {
 /// Convert `rhs` to its normalised Scalar form (see `rhsScalarType`).
 pub inline fn toRhsScalar(comptime BaseT: type, rhs: anytype) rhsScalarType(BaseT, @TypeOf(rhs)) {
     if (comptime isScalarType(@TypeOf(rhs))) return rhs;
-    const DimLess = Scalar_(BaseT, Dimensions.init(.{}), Scales.init(.{}));
+    const DimLess = Scalar(BaseT, .{}, .{});
     return DimLess{ .value = @as(BaseT, rhs) };
 }
 
@@ -49,11 +49,9 @@ pub inline fn toRhsScalar(comptime BaseT: type, rhs: anytype) rhsScalarType(Base
 /// A dimensioned scalar value. `T` is the numeric type, `d` the dimension exponents, `s` the SI scales.
 /// All dimension and unit tracking is resolved at comptime — zero runtime overhead.
 pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_opt: Scales.ArgOpts) type {
-    return Scalar_(T, Dimensions.init(d_opt), Scales.init(s_opt));
-}
-
-pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
     @setEvalBranchQuota(10_000_000);
+    const d = Dimensions.init(d_opt);
+    const s = Scales.init(s_opt);
     return struct {
         value: T,
 
@@ -93,10 +91,10 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
         /// Scales are auto-resolved to the finer of the two.
         /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`
         /// (bare numbers are treated as dimensionless).
-        pub inline fn add(self: Self, r: anytype) Scalar_(
+        pub inline fn add(self: Self, r: anytype) Scalar(
             T,
-            dims,
-            hlp.finerScales(Self, RhsT(@TypeOf(r))),
+            dims.argsOpt(),
+            hlp.finerScales(Self, RhsT(@TypeOf(r))).argsOpt(),
         ) {
             const rhs_s = rhs(r);
             const RhsType = @TypeOf(rhs_s);
@@ -105,7 +103,7 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
             if (comptime RhsType == Self)
                 return .{ .value = self.value + rhs_s.value };
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return .{ .value = lhs_val + rhs_val };
@@ -114,10 +112,10 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
         /// Subtract two quantities. Dimensions must match — compile error otherwise.
         /// Scales are auto-resolved to the finer of the two.
         /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
-        pub inline fn sub(self: Self, r: anytype) Scalar_(
+        pub inline fn sub(self: Self, r: anytype) Scalar(
             T,
-            dims,
-            hlp.finerScales(Self, RhsT(@TypeOf(r))),
+            dims.argsOpt(),
+            hlp.finerScales(Self, RhsT(@TypeOf(r))).argsOpt(),
         ) {
             const rhs_s = rhs(r);
             const RhsType = @TypeOf(rhs_s);
@@ -126,7 +124,7 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
             if (comptime RhsType == Self)
                 return .{ .value = self.value - rhs_s.value };
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return .{ .value = lhs_val - rhs_val };
@@ -135,15 +133,15 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
         /// Multiply two quantities. Dimension exponents are summed: `L¹ * T⁻¹ → L¹T⁻¹`.
         /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`
         /// (bare numbers are treated as dimensionless — dimensions pass through unchanged).
-        pub inline fn mulBy(self: Self, r: anytype) Scalar_(
+        pub inline fn mulBy(self: Self, r: anytype) Scalar(
             T,
-            dims.add(RhsT(@TypeOf(r)).dims),
-            hlp.finerScales(Self, RhsT(@TypeOf(r))),
+            dims.add(RhsT(@TypeOf(r)).dims).argsOpt(),
+            hlp.finerScales(Self, RhsT(@TypeOf(r))).argsOpt(),
         ) {
             const rhs_s = rhs(r);
             const RhsType = @TypeOf(rhs_s);
-            const SelfNorm = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
-            const RhsNorm = Scalar_(T, RhsType.dims, hlp.finerScales(Self, RhsType));
+            const SelfNorm = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
+            const RhsNorm = Scalar(T, RhsType.dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             if (comptime Self == SelfNorm and RhsType == RhsNorm)
                 return .{ .value = self.value * rhs_s.value };
 
@@ -155,15 +153,15 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
         /// Divide two quantities. Dimension exponents are subtracted: `L¹ / T¹ → L¹T⁻¹`.
         /// Integer types use truncating division.
         /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
-        pub inline fn divBy(self: Self, r: anytype) Scalar_(
+        pub inline fn divBy(self: Self, r: anytype) Scalar(
             T,
-            dims.sub(RhsT(@TypeOf(r)).dims),
-            hlp.finerScales(Self, RhsT(@TypeOf(r))),
+            dims.sub(RhsT(@TypeOf(r)).dims).argsOpt(),
+            hlp.finerScales(Self, RhsT(@TypeOf(r))).argsOpt(),
         ) {
             const rhs_s = rhs(r);
             const RhsType = @TypeOf(rhs_s);
-            const SelfNorm = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
-            const RhsNorm = Scalar_(T, RhsType.dims, hlp.finerScales(Self, RhsType));
+            const SelfNorm = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
+            const RhsNorm = Scalar(T, RhsType.dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
             const rhs_val = if (comptime RhsType == RhsNorm) rhs_s.value else rhs_s.to(RhsNorm).value;
             if (comptime @typeInfo(T) == .int) {
@@ -188,10 +186,10 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
 
         /// Raises the quantity to a compile-time integer exponent.
         /// Dimension exponents are multiplied by the exponent: `(L²)³ → L⁶`.
-        pub inline fn pow(self: Self, comptime exp: comptime_int) Scalar_(
+        pub inline fn pow(self: Self, comptime exp: comptime_int) Scalar(
             T,
-            dims.scale(exp),
-            s,
+            dims.scale(exp).argsOpt(),
+            scales.argsOpt(),
         ) {
             if (comptime @typeInfo(T) == .int)
                 return .{ .value = std.math.powi(T, self.value, exp) catch @panic("Integer overflow in pow") }
@@ -199,10 +197,10 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
                 return .{ .value = std.math.pow(T, self.value, @as(T, @floatFromInt(exp))) };
         }
 
-        pub inline fn sqrt(self: Self) Scalar_(
+        pub inline fn sqrt(self: Self) Scalar(
             T,
-            dims.div(2),
-            s,
+            dims.div(2).argsOpt(),
+            scales.argsOpt(),
         ) {
             if (comptime !dims.isSquare()) // Check if all exponents are divisible by 2
                 @compileError("Cannot take sqrt of " ++ dims.str() ++ ": exponents must be even.");
@@ -279,7 +277,7 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
             if (comptime RhsType == Self)
                 return self.value == rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val == rhs_val;
@@ -296,7 +294,7 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
             if (comptime RhsType == Self)
                 return self.value != rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val != rhs_val;
@@ -313,7 +311,7 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
             if (comptime RhsType == Self)
                 return self.value > rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val > rhs_val;
@@ -330,7 +328,7 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
             if (comptime RhsType == Self)
                 return self.value >= rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val >= rhs_val;
@@ -347,7 +345,7 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
             if (comptime RhsType == Self)
                 return self.value < rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val < rhs_val;
@@ -364,7 +362,7 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
             if (comptime RhsType == Self)
                 return self.value <= rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val <= rhs_val;

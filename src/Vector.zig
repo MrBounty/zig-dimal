@@ -130,6 +130,133 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Returns true only if all components are equal after scale resolution.
+        pub inline fn eqAll(self: Self, rhs: anytype) bool {
+            const Tr = @TypeOf(rhs);
+            if (comptime !dims.eql(Tr.dims))
+                @compileError("Dimension mismatch in eq: " ++ dims.str() ++ " vs " ++ Tr.dims.str());
+
+            inline for (self.data, 0..) |v, i| {
+                const lhs_q = Q{ .value = v };
+                const rhs_q = Tr.ScalarType{ .value = rhs.data[i] };
+                if (!lhs_q.eq(rhs_q)) return false;
+            }
+            return true;
+        }
+
+        /// Returns true if any component differs after scale resolution.
+        pub inline fn neAll(self: Self, rhs: anytype) bool {
+            return !self.eqAll(rhs);
+        }
+
+        /// Element-wise "Equal". Returns an array of booleans.
+        pub inline fn eq(self: Self, rhs: anytype) [len]bool {
+            const Tr = @TypeOf(rhs);
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).eq(Tr.ScalarType{ .value = rhs.data[i] });
+            return res;
+        }
+
+        /// Element-wise "Not Equal". Returns an array of booleans.
+        pub inline fn ne(self: Self, rhs: anytype) [len]bool {
+            const Tr = @TypeOf(rhs);
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).ne(Tr.ScalarType{ .value = rhs.data[i] });
+            return res;
+        }
+
+        /// Element-wise "Greater Than". Returns an array of booleans.
+        pub inline fn gt(self: Self, rhs: anytype) [len]bool {
+            const Tr = @TypeOf(rhs);
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).gt(Tr.ScalarType{ .value = rhs.data[i] });
+            return res;
+        }
+
+        /// Element-wise "Greater Than or Equal". Returns an array of booleans.
+        pub inline fn gte(self: Self, rhs: anytype) [len]bool {
+            const Tr = @TypeOf(rhs);
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).gte(Tr.ScalarType{ .value = rhs.data[i] });
+            return res;
+        }
+
+        /// Element-wise "Less Than". Returns an array of booleans.
+        pub inline fn lt(self: Self, rhs: anytype) [len]bool {
+            const Tr = @TypeOf(rhs);
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).lt(Tr.ScalarType{ .value = rhs.data[i] });
+            return res;
+        }
+
+        /// Element-wise "Less Than or Equal". Returns an array of booleans.
+        pub inline fn lte(self: Self, rhs: anytype) [len]bool {
+            const Tr = @TypeOf(rhs);
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).lte(Tr.ScalarType{ .value = rhs.data[i] });
+            return res;
+        }
+
+        /// Compares every element in the vector to a single scalar for equality.
+        /// Returns an array of booleans [len]bool. Dimensions must match; scales are auto-resolved.
+        pub inline fn eqScalar(self: Self, scalar: anytype) [len]bool {
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).eq(scalar);
+            return res;
+        }
+
+        /// Compares every element in the vector to a single scalar for inequality.
+        /// Returns an array of booleans [len]bool. Dimensions must match; scales are auto-resolved.
+        pub inline fn neScalar(self: Self, scalar: anytype) [len]bool {
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).ne(scalar);
+            return res;
+        }
+
+        /// Checks if each element in the vector is strictly greater than the given scalar.
+        /// Returns an array of booleans [len]bool.
+        pub inline fn gtScalar(self: Self, scalar: anytype) [len]bool {
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).gt(scalar);
+            return res;
+        }
+
+        /// Checks if each element in the vector is greater than or equal to the given scalar.
+        /// Returns an array of booleans [len]bool.
+        pub inline fn gteScalar(self: Self, scalar: anytype) [len]bool {
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).gte(scalar);
+            return res;
+        }
+
+        /// Checks if each element in the vector is strictly less than the given scalar.
+        /// Returns an array of booleans [len]bool.
+        pub inline fn ltScalar(self: Self, scalar: anytype) [len]bool {
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).lt(scalar);
+            return res;
+        }
+
+        /// Checks if each element in the vector is less than or equal to the given scalar.
+        /// Returns an array of booleans [len]bool.
+        pub inline fn lteScalar(self: Self, scalar: anytype) [len]bool {
+            var res: [len]bool = undefined;
+            inline for (self.data, 0..) |v, i|
+                res[i] = (Q{ .value = v }).lte(scalar);
+            return res;
+        }
+
         /// Negate all components. Dimensions are preserved.
         pub fn negate(self: Self) Self {
             var res: Self = undefined;
@@ -343,4 +470,53 @@ test "VecX Length" {
     const v_float = MeterFloat.Vec3{ .data = .{ 3.0, 4.0, 0.0 } };
     try std.testing.expectApproxEqAbs(@as(f32, 25.0), v_float.lengthSqr(), 1e-4);
     try std.testing.expectApproxEqAbs(@as(f32, 5.0), v_float.length(), 1e-4);
+}
+
+test "Vector Comparisons" {
+    const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const KiloMeter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+
+    const v1 = Meter.Vec3{ .data = .{ 1000.0, 500.0, 0.0 } };
+    const v2 = KiloMeter.Vec3{ .data = .{ 1.0, 0.5, 0.0 } };
+    const v3 = KiloMeter.Vec3{ .data = .{ 1.0, 0.6, 0.0 } };
+
+    // 1. Equality (Whole vector)
+    try std.testing.expect(v1.eqAll(v2));
+    try std.testing.expect(v1.neAll(v3));
+
+    // 2. Element-wise Ordered Comparison
+    const higher = v3.gt(v1); // compares 1km, 0.6km, 0km vs 1000m, 500m, 0m
+    try std.testing.expectEqual(false, higher[0]); // 1km == 1000m
+    try std.testing.expectEqual(true, higher[1]); // 0.6km > 500m
+    try std.testing.expectEqual(false, higher[2]); // 0 == 0
+
+    // 3. Element-wise Equal Comparison
+    const equal = v3.eq(v1); // compares 1km, 0.6km, 0km vs 1000m, 500m, 0m
+    try std.testing.expectEqual(true, equal[0]); // 1km == 1000m
+    try std.testing.expectEqual(false, equal[1]); // 0.6km > 500m
+    try std.testing.expectEqual(true, equal[2]); // 0 == 0
+
+    // 3. Less than or equal
+    const low_eq = v1.lte(v3);
+    try std.testing.expect(low_eq[0] and low_eq[1] and low_eq[2]);
+}
+
+test "Vector vs Scalar Comparisons" {
+    const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const KiloMeter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+
+    const positions = Meter.Vec3{ .data = .{ 500.0, 1200.0, 3000.0 } };
+    const threshold = KiloMeter{ .value = 1.0 }; // 1km (1000m)
+
+    // Check which axes exceed the 1km threshold
+    const exceeded = positions.gtScalar(threshold);
+
+    try std.testing.expectEqual(false, exceeded[0]); // 500m  > 1km is false
+    try std.testing.expectEqual(true, exceeded[1]); // 1200m > 1km is true
+    try std.testing.expectEqual(true, exceeded[2]); // 3000m > 1km is true
+
+    // Check for equality (broadcasted)
+    const exact_match = positions.eqScalar(Meter{ .value = 500.0 });
+    try std.testing.expect(exact_match[0] == true);
+    try std.testing.expect(exact_match[1] == false);
 }

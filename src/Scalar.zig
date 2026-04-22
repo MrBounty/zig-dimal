@@ -8,12 +8,6 @@ const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
 // TODO: Add those operation:
-//  - eq: Equal
-//  - ne: Not equal
-//  - gt: Greather than
-//  - gte: Greather than or equal
-//  - lt: Less than
-//  - lte Less than or equal
 //  - abs: Absolut value
 //  - pow: Scalar power another
 //  - log: Scalar log another
@@ -156,6 +150,94 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             }
         }
 
+        /// Compares two Scalar for exact equality.
+        /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
+        pub inline fn eq(self: Self, rhs: anytype) bool {
+            if (comptime !dims.eql(@TypeOf(rhs).dims))
+                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
+            if (comptime @TypeOf(rhs) == Self)
+                return self.value == rhs.value;
+
+            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
+
+            return lhs_val == rhs_val;
+        }
+
+        /// Compares two quantities for inequality.
+        /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
+        pub inline fn ne(self: Self, rhs: anytype) bool {
+            if (comptime !dims.eql(@TypeOf(rhs).dims))
+                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
+            if (comptime @TypeOf(rhs) == Self)
+                return self.value != rhs.value;
+
+            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
+
+            return lhs_val != rhs_val;
+        }
+
+        /// Returns true if this quantity is strictly greater than the right-hand side.
+        /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
+        pub inline fn gt(self: Self, rhs: anytype) bool {
+            if (comptime !dims.eql(@TypeOf(rhs).dims))
+                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
+            if (comptime @TypeOf(rhs) == Self)
+                return self.value > rhs.value;
+
+            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
+
+            return lhs_val > rhs_val;
+        }
+        /// Returns true if this quantity is greater than or equal to the right-hand side.
+        /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
+        pub inline fn gte(self: Self, rhs: anytype) bool {
+            if (comptime !dims.eql(@TypeOf(rhs).dims))
+                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
+            if (comptime @TypeOf(rhs) == Self)
+                return self.value >= rhs.value;
+
+            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
+
+            return lhs_val >= rhs_val;
+        }
+
+        /// Returns true if this quantity is strictly less than the right-hand side.
+        /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
+        pub inline fn lt(self: Self, rhs: anytype) bool {
+            if (comptime !dims.eql(@TypeOf(rhs).dims))
+                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
+            if (comptime @TypeOf(rhs) == Self)
+                return self.value < rhs.value;
+
+            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
+
+            return lhs_val < rhs_val;
+        }
+        /// Returns true if this quantity is less than or equal to the right-hand side.
+        /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
+        pub inline fn lte(self: Self, rhs: anytype) bool {
+            if (comptime !dims.eql(@TypeOf(rhs).dims))
+                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
+            if (comptime @TypeOf(rhs) == Self)
+                return self.value <= rhs.value;
+
+            const TargetType = Scalar(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
+
+            return lhs_val <= rhs_val;
+        }
+
         /// Return a `Vector(len, Self)` type.
         pub fn Vec(_: Self, comptime len: comptime_int) type {
             return Vector(len, Self);
@@ -217,6 +299,32 @@ test "Generate quantity" {
 
     try std.testing.expectEqual(10, distance.value);
     try std.testing.expectEqual(2, time.value);
+}
+
+test "Comparisons (eq, ne, gt, gte, lt, lte)" {
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const KiloMeter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{ .L = .k }));
+
+    const m1000 = Meter{ .value = 1000 };
+    const km1 = KiloMeter{ .value = 1 };
+    const km2 = KiloMeter{ .value = 2 };
+
+    // Equal / Not Equal
+    try std.testing.expect(m1000.eq(km1));
+    try std.testing.expect(km1.eq(m1000));
+    try std.testing.expect(km2.ne(m1000));
+
+    // Greater Than / Greater Than or Equal
+    try std.testing.expect(km2.gt(m1000));
+    try std.testing.expect(km2.gt(km1));
+    try std.testing.expect(km1.gte(m1000));
+    try std.testing.expect(km2.gte(m1000));
+
+    // Less Than / Less Than or Equal
+    try std.testing.expect(m1000.lt(km2));
+    try std.testing.expect(km1.lt(km2));
+    try std.testing.expect(km1.lte(m1000));
+    try std.testing.expect(m1000.lte(km2));
 }
 
 test "Add" {

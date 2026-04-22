@@ -3,6 +3,9 @@ const hlp = @import("helper.zig");
 const Dimensions = @import("Dimensions.zig");
 const Dimension = @import("Dimensions.zig").Dimension;
 
+/// SI prefix (pico…peta) plus time-unit aliases (min, hour, year).
+/// The integer value encodes the exponent for SI prefixes (e.g. `k = 3` → 10³),
+/// and the literal factor for time units (e.g. `hour = 3600`).
 pub const UnitScale = enum(isize) {
     P = 15,
     T = 12,
@@ -54,10 +57,13 @@ pub const UnitScale = enum(isize) {
     }
 };
 
+/// Maps each SI base dimension to its `UnitScale`. Stored and resolved entirely at comptime.
 const Scales = @This();
 
 data: std.EnumArray(Dimension, UnitScale),
 
+/// Create a `Scales` from an anonymous struct literal, e.g. `.{ .L = .k, .T = .hour }`.
+/// Unspecified dimensions default to `.none` (factor 1).
 pub fn init(comptime init_val: anytype) Scales {
     comptime var s = Scales{ .data = std.EnumArray(Dimension, UnitScale).initFill(.none) };
     inline for (std.meta.fields(@TypeOf(init_val))) |f| {
@@ -81,6 +87,8 @@ pub fn set(comptime self: *Scales, comptime key: Dimension, comptime val: UnitSc
     comptime self.data.set(key, val);
 }
 
+/// Compute the combined scale factor for a given dimension signature.
+/// Each dimension's prefix is raised to its exponent and multiplied together.
 pub inline fn getFactor(comptime s: Scales, comptime d: Dimensions) comptime_float {
     comptime var factor: f64 = 1.0;
     inline for (std.enums.values(Dimension)) |dim| {

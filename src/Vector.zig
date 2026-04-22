@@ -7,6 +7,7 @@ const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
+/// A fixed-size array of `len` elements sharing the same dimension and scale as scalar type `Q`.
 pub fn Vector(comptime len: usize, comptime Q: type) type {
     const T = Q.ValueType;
     const d: Dimensions = Q.dims;
@@ -30,6 +31,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return .{ .data = data };
         }
 
+        /// Element-wise addition. Dimensions must match; scales resolve to the finer of the two.
         pub inline fn add(self: Self, rhs: anytype) Vector(len, Scalar(
             T,
             dims,
@@ -43,7 +45,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             }
             return res;
         }
-
+        /// Element-wise subtraction. Dimensions must match; scales resolve to the finer of the two.
         pub inline fn sub(self: Self, rhs: anytype) Vector(len, Scalar(
             T,
             dims,
@@ -58,6 +60,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Element-wise division. Dimension exponents are subtracted per component.
         pub inline fn divBy(
             self: Self,
             rhs: anytype,
@@ -75,6 +78,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Element-wise multiplication. Dimension exponents are summed per component.
         pub inline fn mulBy(
             self: Self,
             rhs: anytype,
@@ -92,6 +96,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Divide every component by a single scalar. Dimensions are subtracted (e.g. position / time → velocity).
         pub inline fn divByScalar(
             self: Self,
             scalar: anytype,
@@ -108,6 +113,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Multiply every component by a single scalar. Dimensions are summed.
         pub inline fn mulByScalar(
             self: Self,
             scalar: anytype,
@@ -124,6 +130,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Negate all components. Dimensions are preserved.
         pub fn negate(self: Self) Self {
             var res: Self = undefined;
             inline for (self.data, 0..) |v, i|
@@ -131,6 +138,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Convert all components to a compatible scalar type. Compile error on dimension mismatch.
         pub inline fn to(self: Self, comptime DestQ: type) Vector(len, DestQ) {
             var res: Vector(len, DestQ) = undefined;
             inline for (self.data, 0..) |v, i|
@@ -138,6 +146,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Sum of squared components. Cheaper than `length` — use for comparisons.
         pub inline fn lengthSqr(self: Self) T {
             var sum: T = 0;
             inline for (self.data) |v|
@@ -145,6 +154,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return sum;
         }
 
+        /// Euclidean length. Integer types use integer sqrt (truncated).
         pub inline fn length(self: Self) T {
             const len_sq = self.lengthSqr();
 

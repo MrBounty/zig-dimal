@@ -18,18 +18,29 @@ const Dimension = Dimensions.Dimension;
 //  - pow: Scalar power another
 //  - log: Scalar log another
 
+/// A dimensioned scalar value. `T` is the numeric type, `d` the dimension exponents, `s` the SI scales.
+/// All dimension and unit tracking is resolved at comptime — zero runtime overhead.
 pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type {
     @setEvalBranchQuota(10_000_000);
     return struct {
         value: T,
 
         const Self = @This();
+
+        /// Type of Vector(3, Self)
         pub const Vec3: type = Vector(3, Self);
+
+        /// Type of underline value, mostly use for Vector
         pub const ValueType: type = T;
 
+        /// Dimensions of this type
         pub const dims: Dimensions = d;
+
+        /// Scales of this type
         pub const scales = s;
 
+        /// Add two quantities. Dimensions must match — compile error otherwise.
+        /// Scales are auto-resolved to the finer of the two.
         pub inline fn add(self: Self, rhs: anytype) Scalar(
             T,
             dims,
@@ -47,6 +58,8 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             return .{ .value = lhs_val + rhs_val };
         }
 
+        /// Subtract two quantities. Dimensions must match — compile error otherwise.
+        /// Scales are auto-resolved to the finer of the two.
         pub inline fn sub(self: Self, rhs: anytype) Scalar(
             T,
             dims,
@@ -64,6 +77,7 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             return .{ .value = lhs_val - rhs_val };
         }
 
+        /// Multiply two quantities. Dimension exponents are summed: `L¹ * T⁻¹ → L¹T⁻¹`.
         pub inline fn mulBy(self: Self, rhs: anytype) Scalar(
             T,
             dims.add(@TypeOf(rhs).dims),
@@ -80,6 +94,8 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             return .{ .value = lhs_val * rhs_val };
         }
 
+        /// Divide two quantities. Dimension exponents are subtracted: `L¹ / T¹ → L¹T⁻¹`.
+        /// Integer types use truncating division.
         pub inline fn divBy(self: Self, rhs: anytype) Scalar(
             T,
             dims.sub(@TypeOf(rhs).dims),
@@ -97,6 +113,8 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             }
         }
 
+        /// Convert to a compatible unit type. The scale ratio is computed at comptime.
+        /// Compile error if dimensions don't match.
         pub inline fn to(self: Self, comptime Dest: type) Dest {
             if (comptime !dims.eql(Dest.dims))
                 @compileError("Dimension mismatch in to: " ++ dims.str() ++ " vs " ++ Dest.dims.str());
@@ -138,10 +156,17 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             }
         }
 
-        pub fn Vec(self: Self, comptime len: comptime_int) Vector(len, Self) {
+        /// Return a `Vector(len, Self)` type.
+        pub fn Vec(_: Self, comptime len: comptime_int) type {
+            return Vector(len, Self);
+        }
+
+        /// Return a `Vector(len, Self)` with all components set to this value.
+        pub fn vec(self: Self, comptime len: comptime_int) Vector(len, Self) {
             return Vector(len, Self).initDefault(self.value);
         }
 
+        /// Shorthand for `Vec(3)` — wrap this value into a 3-component vector.
         pub fn vec3(self: Self) Vec3 {
             return Vec3.initDefault(self.value);
         }

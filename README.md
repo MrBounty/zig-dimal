@@ -14,7 +14,7 @@ Started by a space simulation where `i128` positions were needed to avoid float 
 - **100% comptime** — all dimension and unit tracking happens at compile time. No added memory, *almost* native performance.
 - **Compile-time dimension errors** — adding `Meter` to `Second` is a compile error, not a runtime panic.
 - **Automatic unit conversion** — use `.to()` to convert between compatible units (e.g. `km/h` → `m/s`). Scale factors are resolved at comptime.
-- **Full SI prefix support** — `pico`, `nano`, `micro`, `milli`, `centi`, `deci`, `kilo`, `mega`, `giga`, `tera`, `peta`, and more.
+* **Full SI prefix & Imperial support** — `pico` through `peta`, plus common Imperial units like `inch`, `ft`, `mi`, `lb`, and `oz`.
 - **Time scale support** — `min`, `hour`, `year` built in.
 - **Scalar and Vector types** — operate on individual values or fixed-size arrays with the same dimensional safety.
 - **Built-in physical quantities** — `dma.Base` provides ready-made types for `Velocity`, `Acceleration`, `Force`, `Energy`, `Pressure`, `ElectricCharge`, `ThermalConductivity`, and many more.
@@ -138,6 +138,18 @@ const speed_ms  = speed_kmh.to(Velocity); // 33.333... m/s — comptime ratio
 
 // This would NOT compile:
 // const bad = speed_kmh.to(Second); // "Dimension mismatch in to: L1T-1 vs T1"
+```
+
+#### Imperial
+
+```zig
+const Inch      = Scalar(f64, .{ .L = 1 }, .{ .L = .inch });
+const Mile      = Scalar(f64, .{ .L = 1 }, .{ .L = .mi });
+const Pound     = Scalar(f64, .{ .M = 1 }, .{ .M = .lb });
+
+// Conversion example
+const dist_m = Meter{ .value = 1609.344 };
+const dist_mi = dist_m.to(Mile); // Result: 1.0
 ```
 
 ### Arithmetic with bare numbers
@@ -292,25 +304,19 @@ Call `.Of(T)` for base-unit scalars, `.Scaled(T, scales)` for custom scales:
 
 `Meter`, `Second`, `Gramm`, `Kelvin`, `ElectricCurrent`, `Speed`, `Acceleration`, `Inertia`, `Force`, `Pressure`, `Energy`, `Power`, `Area`, `Volume`, `Density`, `Frequency`, `Viscosity`, `ElectricCharge`, `ElectricPotential`, `ElectricResistance`, `MagneticFlux`, `ThermalCapacity`, `ThermalConductivity`, and more.
 
-### `Scales` — SI prefixes
+### `Scales` — SI and Imperial Units
 
-| Tag | Factor |
-|---|---|
-| `.P` | 10¹⁵ |
-| `.T` | 10¹² |
-| `.G` | 10⁹ |
-| `.M` | 10⁶ |
-| `.k` | 10³ |
-| `.none` | 1 |
-| `.c` | 10⁻² |
-| `.m` | 10⁻³ |
-| `.u` | 10⁻⁶ |
-| `.n` | 10⁻⁹ |
-| `.p` | 10⁻¹² |
-| `.f` | 10⁻¹⁵ |
-| `.min` | 60 |
-| `.hour` | 3600 |
-| `.year` | 31 536 000 |
+| Tag | Factor (Relative to Base) | Type |
+|---|---|---|
+| `.P` ... `.f` | $10^{15}$ ... $10^{-15}$ | SI Prefixes |
+| `.min`, `.hour`, `.year` | 60, 3600, 31,536,000 | Time |
+| **`.inch`** | **0.0254** | Imperial Length (m) |
+| **`.ft`** | **0.3048** | Imperial Length (m) |
+| **`.yd`** | **0.9144** | Imperial Length (m) |
+| **`.mi`** | **1609.344** | Imperial Length (m)  |
+| **`.oz`** | **28.3495231** | Imperial Mass (g) |
+| **`.lb`** | **453.59237** | Imperial Mass (g)  |
+| **`.st`** | **6350.29318** | Imperial Mass (g)  |
 
 Scale entries for dimensions with exponent `0` are ignored — multiplying a dimensionless value by a kilometre-scale value no longer accidentally inherits the `k` prefix.
 

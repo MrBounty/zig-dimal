@@ -68,7 +68,6 @@ pub fn add(comptime a: Self, comptime b: Self) Self {
 
 /// Subtract exponents component-wise. Used internally by `divBy`.
 pub fn sub(comptime a: Self, comptime b: Self) Self {
-    @setEvalBranchQuota(10_000);
     var result = Self.initFill(0);
     inline for (std.enums.values(Dimension)) |d|
         result.set(d, a.get(d) - b.get(d));
@@ -77,10 +76,16 @@ pub fn sub(comptime a: Self, comptime b: Self) Self {
 
 /// Multiply exponents by a scalar integer. Used internally by `pow` in Scalar.
 pub fn scale(comptime a: Self, comptime exp: comptime_int) Self {
-    @setEvalBranchQuota(10_000);
     var result = Self.initFill(0);
     inline for (std.enums.values(Dimension)) |d|
         result.set(d, a.get(d) * exp);
+    return result;
+}
+
+pub fn div(comptime a: Self, comptime exp: comptime_int) Self {
+    var result = Self.initFill(0);
+    inline for (std.enums.values(Dimension)) |d|
+        result.set(d, a.get(d) / exp);
     return result;
 }
 
@@ -88,6 +93,12 @@ pub fn scale(comptime a: Self, comptime exp: comptime_int) Self {
 pub fn eql(comptime a: Self, comptime b: Self) bool {
     inline for (std.enums.values(Dimension)) |d|
         if (a.get(d) != b.get(d)) return false;
+    return true;
+}
+
+pub fn isSquare(comptime a: Self) bool {
+    inline for (std.enums.values(Dimension)) |d|
+        if (a.get(d) % 2 != 0) return false;
     return true;
 }
 

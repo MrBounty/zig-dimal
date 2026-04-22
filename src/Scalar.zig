@@ -7,10 +7,8 @@ const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
-// TODO: Add those operation:
-//  - abs: Absolut value
-//  - pow: Scalar power another
-//  - log: Scalar log another
+// TODO: Be able to use comptime float and int and T for mulBy ect
+// Which endup being Dimension less
 
 /// A dimensioned scalar value. `T` is the numeric type, `d` the dimension exponents, `s` the SI scales.
 /// All dimension and unit tracking is resolved at comptime — zero runtime overhead.
@@ -127,6 +125,24 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
                 return .{ .value = std.math.powi(T, self.value, exp) catch @panic("Integer overflow in pow") }
             else
                 return .{ .value = std.math.pow(T, self.value, @as(T, @floatFromInt(exp))) };
+        }
+
+        pub inline fn sqrt(self: Self) Scalar(
+            T,
+            dims.div(2),
+            s,
+        ) {
+            if (comptime !dims.isSquare()) // Check if all exponents are divisible by 2
+                @compileError("Cannot take sqrt of " ++ dims.str() ++ ": exponents must be even.");
+            if (self.value < 0) return .{ .value = 0 };
+
+            if (comptime @typeInfo(T) == .int) {
+                const UnsignedT = @Int(.unsigned, @typeInfo(T).int.bits);
+                const u_len_sq = @as(UnsignedT, @intCast(self.value));
+                return .{ .value = @as(T, @intCast(std.math.sqrt(u_len_sq))) };
+            } else {
+                return .{ .value = @sqrt(self.value) };
+            }
         }
 
         /// Convert to a compatible unit type. The scale ratio is computed at comptime.
@@ -461,6 +477,26 @@ test "MulBy dimensionless" {
     const scaled = d.mulBy(DimLess{ .value = 3 });
     try std.testing.expectEqual(21, scaled.value);
     try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+}
+
+test "Sqrt" {
+    const MeterSquare = Scalar(i128, Dimensions.init(.{ .L = 2 }), Scales.init(.{}));
+
+    var d = MeterSquare{ .value = 9 };
+    var scaled = d.sqrt();
+    try std.testing.expectEqual(3, scaled.value);
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+
+    d = MeterSquare{ .value = -5 };
+    scaled = d.sqrt();
+    try std.testing.expectEqual(0, scaled.value);
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+
+    const MeterSquare_f = Scalar(f64, Dimensions.init(.{ .L = 2 }), Scales.init(.{}));
+    const d2 = MeterSquare_f{ .value = 20 };
+    const scaled2 = d2.sqrt();
+    try std.testing.expectApproxEqAbs(4.472135955, scaled2.value, 1e-4);
+    try std.testing.expectEqual(1, @TypeOf(scaled2).dims.get(.L));
 }
 
 test "Chained: velocity and acceleration" {

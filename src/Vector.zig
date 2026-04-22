@@ -190,6 +190,16 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             return res;
         }
 
+        /// Returns a vector where each component is the absolute value of the original.
+        pub inline fn sqrt(self: Self) Self {
+            var res: Self = undefined;
+            inline for (self.data, 0..) |v, i| {
+                const q = Q{ .value = v };
+                res.data[i] = q.sqrt().value;
+            }
+            return res;
+        }
+
         /// Multiplies all components of the vector together.
         /// Resulting dimensions are (Original Dims * len).
         pub inline fn product(self: Self) Scalar(
@@ -549,7 +559,7 @@ test "VecX Length" {
     const MeterInt = Scalar(i32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
     const MeterFloat = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
 
-    // Integer length (using your custom isqrt)
+    // Integer length
     // 3-4-5 triangle on XY plane
     const v_int = MeterInt.Vec3{ .data = .{ 3, 4, 0 } };
     try std.testing.expectEqual(25, v_int.lengthSqr());
@@ -634,7 +644,7 @@ test "Vector Dot and Cross Products" {
     try std.testing.expectEqual(2, @TypeOf(torque).dims.get(.L));
 }
 
-test "Vector Abs, Pow, and Product" {
+test "Vector Abs, Pow, Sqrt and Product" {
     const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
 
     const v1 = Meter.Vec3{ .data = .{ -2.0, 3.0, -4.0 } };
@@ -654,4 +664,10 @@ test "Vector Abs, Pow, and Product" {
     try std.testing.expectEqual(4.0, area_vec.data[0]);
     try std.testing.expectEqual(16.0, area_vec.data[2]);
     try std.testing.expectEqual(2, @TypeOf(area_vec).dims.get(.L));
+
+    // 4. Sqrt
+    const sqrted = area_vec.sqrt();
+    try std.testing.expectEqual(2, sqrted.data[0]);
+    try std.testing.expectEqual(4, sqrted.data[2]);
+    try std.testing.expectEqual(2, @TypeOf(sqrted).dims.get(.L));
 }

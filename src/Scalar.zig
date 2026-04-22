@@ -749,6 +749,61 @@ test "add/sub bare number on dimensionless scalar" {
     try std.testing.expectEqual(7, c.value);
 }
 
+test "Imperial length scales" {
+    const Foot = Scalar(f64, .{ .L = 1 }, .{ .L = .ft });
+    const Meter = Scalar(f64, .{ .L = 1 }, .{});
+    const Inch = Scalar(f64, .{ .L = 1 }, .{ .L = .inch });
+    const CentiMeter = Scalar(f64, .{ .L = 1 }, .{ .L = .c });
+    const Mile = Scalar(f64, .{ .L = 1 }, .{ .L = .mi });
+    const KiloMeter = Scalar(f64, .{ .L = 1 }, .{ .L = .k });
+    const Yard = Scalar(f64, .{ .L = 1 }, .{ .L = .yd });
+
+    // 1 ft → 0.3048 m
+    const one_ft = Foot{ .value = 1.0 };
+    try std.testing.expectApproxEqAbs(0.3048, one_ft.to(Meter).value, 1e-9);
+
+    // 12 in → 1 ft
+    const twelve_in = Inch{ .value = 12.0 };
+    try std.testing.expectApproxEqAbs(1.0, twelve_in.to(Foot).value, 1e-9);
+
+    // 1 in → 2.54 cm
+    const one_in = Inch{ .value = 1.0 };
+    try std.testing.expectApproxEqAbs(2.54, one_in.to(CentiMeter).value, 1e-9);
+
+    // 1 mi → 1.609344 km
+    const one_mi = Mile{ .value = 1.0 };
+    try std.testing.expectApproxEqAbs(1.609344, one_mi.to(KiloMeter).value, 1e-9);
+
+    // 3 ft → 1 yd
+    const three_ft = Foot{ .value = 3.0 };
+    try std.testing.expectApproxEqAbs(1.0, three_ft.to(Yard).value, 1e-9);
+}
+
+test "Imperial mass scales" {
+    const Pound = Scalar(f64, .{ .M = 1 }, .{ .M = .lb });
+    const KiloGram = Scalar(f64, .{ .M = 1 }, .{ .M = .k });
+    const Ounce = Scalar(f64, .{ .M = 1 }, .{ .M = .oz });
+    const Stone = Scalar(f64, .{ .M = 1 }, .{ .M = .st });
+
+    // 1 lb → ~0.453592 kg
+    const one_lb = Pound{ .value = 1.0 };
+    try std.testing.expectApproxEqAbs(0.45359237, one_lb.to(KiloGram).value, 1e-6);
+
+    // 16 oz → 1 lb
+    const sixteen_oz = Ounce{ .value = 16.0 };
+    try std.testing.expectApproxEqAbs(1.0, sixteen_oz.to(Pound).value, 1e-6);
+
+    // 1 stone → 14 lb
+    const one_st = Stone{ .value = 1.0 };
+    try std.testing.expectApproxEqAbs(14.0, one_st.to(Pound).value, 1e-4);
+
+    // 2 lb + 8 oz → 2.5 lb
+    const two_lb = Pound{ .value = 2.0 };
+    const eight_oz = Ounce{ .value = 8.0 };
+    const total = two_lb.add(eight_oz).to(Pound);
+    try std.testing.expectApproxEqAbs(2.5, total.value, 1e-6);
+}
+
 test "comparisons with comptime_int on dimensionless scalar" {
     const DimLess = Scalar(i128, .{}, .{});
     const x = DimLess{ .value = 42 };

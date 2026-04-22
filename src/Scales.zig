@@ -41,6 +41,18 @@ pub const UnitScale = enum(isize) {
     hour = 3_600,
     year = 31_536_000,
 
+    // Imperial Length (Literal factors in meters)
+    // 1 inch = 0.0254 meters. Since enum backing is isize,
+    // we use a unique tag and handle the float in getFactor.
+    inch = -1001,
+    ft = -1002,
+    yd = -1003,
+    mi = -1004,
+
+    oz = -1005, //  1 oz  = 28.3495231 g
+    lb = -1006, //  1 lb  = 453.59237 g  (= 16 oz)
+    st = -1007, //  1 stone = 6350.29318 g (= 14 lb)
+
     // Undefined
     _,
 
@@ -48,24 +60,31 @@ pub const UnitScale = enum(isize) {
         var buf: [16]u8 = undefined;
         return switch (self) {
             inline .none => "",
-            inline .P, .T, .G, .M, .k, .h, .da, .d, .c, .m, .u, .n, .p, .f, .min, .hour, .year => @tagName(self),
+            inline .P, .T, .G, .M, .k, .h, .da, .d, .c, .m, .u, .n, .p, .f, .min, .hour, .year, .inch, .ft, .yd, .mi, .oz, .lb, .st => @tagName(self),
             else => std.fmt.bufPrint(&buf, "[{d}]", .{@intFromEnum(self)}) catch "[]", // This cannot be inline because of non exhaustive enum, but that's ok, it is just str, not calculation
         };
     }
 
-    /// Helper to get the actual scaling factor
     pub inline fn getFactor(self: @This()) comptime_float {
         return comptime switch (self) {
+            // Standard SI Exponents
             inline .P, .T, .G, .M, .k, .h, .da, .none, .d, .c, .m, .u, .n, .p, .f => std.math.pow(f64, 10.0, @floatFromInt(@intFromEnum(self))),
-            inline else => @floatFromInt(@intFromEnum(self)),
-        };
-    }
 
-    /// Helper to get the actual scaling factor in i32
-    pub fn getFactorInt(self: @This()) comptime_int {
-        return comptime switch (self) {
-            inline .P, .T, .G, .M, .k, .h, .da, .none, .d, .c, .m, .u, .n, .p, .f => std.math.powi(i32, 10.0, @intFromEnum(self)) catch 0,
-            inline else => @intFromEnum(self),
+            // Time Factors
+            inline .min, .hour, .year => @floatFromInt(@intFromEnum(self)),
+
+            // Imperial Length (metres)
+            inline .inch => 0.0254,
+            inline .ft => 0.3048,
+            inline .yd => 0.9144,
+            inline .mi => 1609.344,
+
+            // Imperial Mass (grams — base unit for M is gram, i.e. .none = 1 g)
+            inline .oz => 28.3495231,
+            inline .lb => 453.59237,
+            inline .st => 6350.29318,
+
+            inline else => @floatFromInt(@intFromEnum(self)),
         };
     }
 };

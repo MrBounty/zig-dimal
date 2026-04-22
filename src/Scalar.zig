@@ -107,6 +107,28 @@ pub fn Scalar(comptime T: type, comptime d: Dimensions, comptime s: Scales) type
             }
         }
 
+        /// Returns the absolute value of the quantity.
+        /// Dimensions and scales remain entirely unchanged.
+        pub inline fn abs(self: Self) Self {
+            if (comptime @typeInfo(T) == .int)
+                return .{ .value = @intCast(@abs(self.value)) }
+            else
+                return .{ .value = @abs(self.value) };
+        }
+
+        /// Raises the quantity to a compile-time integer exponent.
+        /// Dimension exponents are multiplied by the exponent: `(L²)³ → L⁶`.
+        pub inline fn pow(self: Self, comptime exp: comptime_int) Scalar(
+            T,
+            dims.scale(exp),
+            s,
+        ) {
+            if (comptime @typeInfo(T) == .int)
+                return .{ .value = std.math.powi(T, self.value, exp) catch @panic("Integer overflow in pow") }
+            else
+                return .{ .value = std.math.pow(T, self.value, @as(T, @floatFromInt(exp))) };
+        }
+
         /// Convert to a compatible unit type. The scale ratio is computed at comptime.
         /// Compile error if dimensions don't match.
         pub inline fn to(self: Self, comptime Dest: type) Dest {
@@ -548,4 +570,37 @@ test "Format Scalar" {
 
     res = try std.fmt.bufPrint(&buf, "{d:_>10.1}", .{m});
     try std.testing.expectEqualStrings("_______1.2m", res);
+}
+
+test "Abs" {
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const m1 = Meter{ .value = -50 };
+    const m2 = m1.abs();
+
+    try std.testing.expectEqual(50, m2.value);
+    try std.testing.expectEqual(1, @TypeOf(m2).dims.get(.L));
+
+    const m_float = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const m3 = m_float{ .value = -42.5 };
+    try std.testing.expectEqual(42.5, m3.abs().value);
+}
+
+test "Pow" {
+    const Meter = Scalar(i128, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const d = Meter{ .value = 4 };
+
+    const area = d.pow(2);
+    try std.testing.expectEqual(16, area.value);
+    try std.testing.expectEqual(2, @TypeOf(area).dims.get(.L));
+
+    const volume = d.pow(3);
+    try std.testing.expectEqual(64, volume.value);
+    try std.testing.expectEqual(3, @TypeOf(volume).dims.get(.L));
+
+    // Float test
+    const MeterF = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+    const d_f = MeterF{ .value = 2.0 };
+    const area_f = d_f.pow(3);
+    try std.testing.expectEqual(8.0, area_f.value);
+    try std.testing.expectEqual(3, @TypeOf(area_f).dims.get(.L));
 }

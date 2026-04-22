@@ -75,6 +75,15 @@ pub fn sub(comptime a: Self, comptime b: Self) Self {
     return result;
 }
 
+/// Multiply exponents by a scalar integer. Used internally by `pow` in Scalar.
+pub fn scale(comptime a: Self, comptime exp: comptime_int) Self {
+    @setEvalBranchQuota(10_000);
+    var result = Self.initFill(0);
+    inline for (std.enums.values(Dimension)) |d|
+        result.set(d, a.get(d) * exp);
+    return result;
+}
+
 /// Returns true if every dimension exponent is equal. Used to enforce type compatibility in `add`, `sub`, `to`.
 pub fn eql(comptime a: Self, comptime b: Self) bool {
     inline for (std.enums.values(Dimension)) |d|

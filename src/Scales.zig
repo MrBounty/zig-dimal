@@ -90,21 +90,21 @@ pub fn set(comptime self: *Scales, comptime key: Dimension, comptime val: UnitSc
 /// Compute the combined scale factor for a given dimension signature.
 /// Each dimension's prefix is raised to its exponent and multiplied together.
 pub inline fn getFactor(comptime s: Scales, comptime d: Dimensions) comptime_float {
-    comptime var factor: f64 = 1.0;
-    inline for (std.enums.values(Dimension)) |dim| {
+    var factor: f64 = 1.0;
+    for (std.enums.values(Dimension)) |dim| {
         const power = comptime d.get(dim);
-        if (comptime power == 0) continue;
+        if (power == 0) continue;
 
-        const base = comptime s.get(dim).getFactor();
+        const base = s.get(dim).getFactor();
 
         var i: comptime_int = 0;
         const abs_power = if (power < 0) -power else power;
-        inline while (i < abs_power) : (i += 1) {
+        while (i < abs_power) : (i += 1) {
             if (power > 0)
                 factor *= base
             else
                 factor /= base;
         }
     }
-    return factor;
+    return comptime factor;
 }

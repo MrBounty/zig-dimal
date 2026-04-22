@@ -180,6 +180,45 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             };
         }
 
+        /// Returns a vector where each component is the absolute value of the original.
+        pub inline fn abs(self: Self) Self {
+            var res: Self = undefined;
+            inline for (self.data, 0..) |v, i| {
+                const q = Q{ .value = v };
+                res.data[i] = q.abs().value;
+            }
+            return res;
+        }
+
+        /// Multiplies all components of the vector together.
+        /// Resulting dimensions are (Original Dims * len).
+        pub inline fn product(self: Self) Scalar(
+            T,
+            dims.scale(len),
+            scales,
+        ) {
+            var res_val: T = 1;
+            inline for (self.data) |v|
+                res_val *= v;
+            return .{ .value = res_val };
+        }
+
+        /// Raises every component to a compile-time integer power.
+        /// Dimensions are scaled by the exponent.
+        pub inline fn pow(self: Self, comptime exp: comptime_int) Vector(len, Scalar(
+            T,
+            dims.scale(exp),
+            scales,
+        )) {
+            const ResScalar = Scalar(T, dims.scale(exp), s);
+            var res: Vector(len, ResScalar) = undefined;
+            inline for (self.data, 0..) |v, i| {
+                const q = Q{ .value = v };
+                res.data[i] = q.pow(exp).value;
+            }
+            return res;
+        }
+
         /// Returns true only if all components are equal after scale resolution.
         pub inline fn eqAll(self: Self, rhs: anytype) bool {
             const Tr = @TypeOf(rhs);
@@ -593,4 +632,26 @@ test "Vector Dot and Cross Products" {
     try std.testing.expectEqual(50.0, torque.data[2]);
     // Torque dimensions are same as Energy but as a Vector
     try std.testing.expectEqual(2, @TypeOf(torque).dims.get(.L));
+}
+
+test "Vector Abs, Pow, and Product" {
+    const Meter = Scalar(f32, Dimensions.init(.{ .L = 1 }), Scales.init(.{}));
+
+    const v1 = Meter.Vec3{ .data = .{ -2.0, 3.0, -4.0 } };
+
+    // 1. Abs
+    const v_abs = v1.abs();
+    try std.testing.expectEqual(2.0, v_abs.data[0]);
+    try std.testing.expectEqual(4.0, v_abs.data[2]);
+
+    // 2. Product (L1 * L1 * L1 = L3)
+    const vol = v_abs.product();
+    try std.testing.expectEqual(24.0, vol.value);
+    try std.testing.expectEqual(3, @TypeOf(vol).dims.get(.L));
+
+    // 3. Pow (Scalar exponent: (L1)^2 = L2)
+    const area_vec = v_abs.pow(2);
+    try std.testing.expectEqual(4.0, area_vec.data[0]);
+    try std.testing.expectEqual(16.0, area_vec.data[2]);
+    try std.testing.expectEqual(2, @TypeOf(area_vec).dims.get(.L));
 }

@@ -50,8 +50,6 @@ pub inline fn toRhsScalar(comptime BaseT: type, rhs: anytype) rhsScalarType(Base
 /// All dimension and unit tracking is resolved at comptime — zero runtime overhead.
 pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_opt: Scales.ArgOpts) type {
     @setEvalBranchQuota(10_000_000);
-    const d = Dimensions.init(d_opt);
-    const s = Scales.init(s_opt);
     return struct {
         value: T,
 
@@ -62,12 +60,8 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
 
         /// Type of underline value, mostly use for Vector
         pub const ValueType: type = T;
-
-        /// Dimensions of this type
-        pub const dims: Dimensions = d;
-
-        /// Scales of this type
-        pub const scales = s;
+        pub const dims: Dimensions = Dimensions.init(d_opt);
+        pub const scales = Scales.init(s_opt);
 
         // ---------------------------------------------------------------
         // Internal: resolved-rhs shorthands

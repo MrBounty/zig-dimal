@@ -3,6 +3,8 @@ const hlp = @import("helper.zig");
 const Dimensions = @import("Dimensions.zig");
 const Dimension = @import("Dimensions.zig").Dimension;
 
+// TODO: add more scales like feet and inch
+
 /// Use to initiate Scalar and Scales type
 pub const ArgOpts = struct {
     L: UnitScale = .none,
@@ -53,17 +55,17 @@ pub const UnitScale = enum(isize) {
 
     /// Helper to get the actual scaling factor
     pub inline fn getFactor(self: @This()) comptime_float {
-        return switch (self) {
+        return comptime switch (self) {
             inline .P, .T, .G, .M, .k, .h, .da, .none, .d, .c, .m, .u, .n, .p, .f => std.math.pow(f64, 10.0, @floatFromInt(@intFromEnum(self))),
             inline else => @floatFromInt(@intFromEnum(self)),
         };
     }
 
     /// Helper to get the actual scaling factor in i32
-    pub inline fn getFactorInt(self: @This()) comptime_int {
-        return switch (self) {
-            inline .P, .T, .G, .M, .k, .h, .da, .none, .d, .c, .m, .u, .n, .p, .f => comptime std.math.powi(i32, 10.0, @intFromEnum(self)) catch 0,
-            inline else => comptime @intFromEnum(self),
+    pub fn getFactorInt(self: @This()) comptime_int {
+        return comptime switch (self) {
+            inline .P, .T, .G, .M, .k, .h, .da, .none, .d, .c, .m, .u, .n, .p, .f => std.math.powi(i32, 10.0, @intFromEnum(self)) catch 0,
+            inline else => @intFromEnum(self),
         };
     }
 };

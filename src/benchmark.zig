@@ -78,17 +78,17 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
         \\
     , .{ ITERS, SAMPLES });
 
-    const Types = .{ i16, i32, i64, i128, i256, f32, f64, f128 };
-    const TNames = .{ "i16", "i32", "i64", "i128", "i256", "f32", "f64", "f128" };
-    const Ops = .{ "add", "sub", "mulBy", "divBy", "to" };
+    const Types = .{ i16, i32, i64, i128, i256, f32, f64 };
+    const TNames = .{ "i16", "i32", "i64", "i128", "i256", "f32", "f64" };
+    const Ops = .{ "add", "sub", "mulBy", "divBy", "to", "abs", "pow", "eq", "gt", "mulBy(n)" };
 
     var results_matrix: [Ops.len][Types.len]f64 = undefined;
 
     comptime var tidx: usize = 0;
     inline for (Types, TNames) |T, tname| {
-        const M = Scalar(T, .init(.{ .L = 1 }), .init(.{}));
-        const KM = Scalar(T, .init(.{ .L = 1 }), .init(.{ .L = .k }));
-        const S = Scalar(T, .init(.{ .T = 1 }), .init(.{}));
+        const M = Scalar(T, .{ .L = 1 }, .{});
+        const KM = Scalar(T, .{ .L = 1 }, .{ .L = .k });
+        const S = Scalar(T, .{ .T = 1 }, .{});
 
         inline for (Ops, 0..) |op_name, oidx| {
             var samples: [SAMPLES]f64 = undefined;
@@ -107,8 +107,16 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
                                 (M{ .value = getVal(T, i, 63) }).mulBy(M{ .value = getVal(T, i +% 1, 63) })
                             else if (comptime std.mem.eql(u8, op_name, "divBy"))
                                 (M{ .value = getVal(T, i +% 10, 63) }).divBy(S{ .value = getVal(T, i, 63) })
-                            else
-                                (KM{ .value = getVal(T, i, 15) }).to(M);
+                            else if (comptime std.mem.eql(u8, op_name, "to"))
+                                (KM{ .value = getVal(T, i, 15) }).to(M)
+                            else if (comptime std.mem.eql(u8, op_name, "abs"))
+                                (M{ .value = getVal(T, i, 63) }).abs()
+                            else if (comptime std.mem.eql(u8, op_name, "eq"))
+                                (M{ .value = getVal(T, i, 63) }).eq(M{ .value = getVal(T, i +% 3, 63) })
+                            else if (comptime std.mem.eql(u8, op_name, "gt"))
+                                (M{ .value = getVal(T, i, 63) }).gt(M{ .value = getVal(T, i +% 3, 63) })
+                            else // "mulBy(n)" — bare comptime_int, dimensionless
+                                (M{ .value = getVal(T, i, 63) }).mulBy(3);
                         },
                     );
                 }
@@ -133,9 +141,9 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
     try writer.print("└───────────────────┴──────┴─────────────────────┴─────────────────────┘\n\n", .{});
     try writer.print("Median Summary (ns/op):\n", .{});
 
-    try writer.print("┌──────────────┬───────┬───────┬───────┬───────┬───────┬───────┬───────┬───────┐\n", .{});
-    try writer.print("│  Operation   │  i16  │  i32  │  i64  │  i128 │  i256 │  f32  │  f64  │  f128 │\n", .{});
-    try writer.print("├──────────────┼───────┼───────┼───────┼───────┼───────┼───────┼───────┼───────┤\n", .{});
+    try writer.print("┌──────────────┬───────┬───────┬───────┬───────┬───────┬───────┬───────┐\n", .{});
+    try writer.print("│  Operation   │  i16  │  i32  │  i64  │  i128 │  i256 │  f32  │  f64  │\n", .{});
+    try writer.print("├──────────────┼───────┼───────┼───────┼───────┼───────┼───────┼───────┤\n", .{});
 
     inline for (Ops, 0..) |op_name, oidx| {
         try writer.print("│  {s:<11} │", .{op_name});
@@ -146,7 +154,7 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
         try writer.print("\n", .{});
     }
 
-    try writer.print("└──────────────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┘\n", .{});
+    try writer.print("└──────────────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┘\n", .{});
 }
 
 fn bench_vsNative(writer: *std.Io.Writer) !void {
@@ -180,8 +188,8 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
             var native_total_ns: f64 = 0;
             var quantity_total_ns: f64 = 0;
 
-            const M = Scalar(T, .init(.{ .L = 1 }), .init(.{}));
-            const S = Scalar(T, .init(.{ .T = 1 }), .init(.{}));
+            const M = Scalar(T, .{ .L = 1 }, .{});
+            const S = Scalar(T, .{ .T = 1 }, .{});
 
             std.mem.doNotOptimizeAway({
                 for (0..SAMPLES) |_| {
@@ -278,9 +286,9 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
                 var native_total_ns: f64 = 0;
                 var quantity_total_ns: f64 = 0;
 
-                const M1 = Scalar(T1, .init(.{ .L = 1 }), .init(.{}));
-                const M2 = Scalar(T2, .init(.{ .L = 1 }), .init(.{}));
-                const S2 = Scalar(T2, .init(.{ .T = 1 }), .init(.{}));
+                const M1 = Scalar(T1, .{ .L = 1 }, .{});
+                const M2 = Scalar(T2, .{ .L = 1 }, .{});
+                const S2 = Scalar(T2, .{ .T = 1 }, .{});
 
                 std.mem.doNotOptimizeAway({
                     for (0..SAMPLES) |_| {
@@ -367,27 +375,35 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
     try writer.print(
         \\
         \\ Vector<N, T> benchmark — {d} iterations, {d} samples/cell
-        \\ (Results in ns/op)
+        \\ (Results in ns/op; "---" = not applicable for this length)
         \\
-        \\┌─────────────┬──────┬─────────┬─────────┬─────────┐
-        \\│ Operation   │ Type │   Len=3 │   Len=4 │  Len=16 │
-        \\├─────────────┼──────┼─────────┼─────────┼─────────┤
+        \\┌──────────────────┬──────┬─────────┬─────────┬─────────┐
+        \\│ Operation        │ Type │   Len=3 │   Len=4 │  Len=16 │
+        \\├──────────────────┼──────┼─────────┼─────────┼─────────┤
         \\
     , .{ ITERS, SAMPLES });
 
     const Types = .{ i32, i64, i128, f32, f64 };
     const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
     const Lengths = .{ 3, 4, 16 };
-    const Ops = .{ "add", "divBy", "mulByScalar", "length" };
+    // "cross" is only valid for len=3; other cells will show "  ---  "
+    const Ops = .{ "add", "divBy", "mulByScalar", "dot", "cross", "product", "pow", "length" };
 
     inline for (Ops, 0..) |op_name, o_idx| {
         inline for (Types, TNames) |T, tname| {
-            try writer.print("│ {s:<11} │ {s:<4} │", .{ op_name, tname });
+            try writer.print("│ {s:<16} │ {s:<4} │", .{ op_name, tname });
 
             inline for (Lengths) |len| {
-                const Q_base = Scalar(T, .init(.{ .L = 1 }), .init(.{}));
-                const Q_time = Scalar(T, .init(.{ .T = 1 }), .init(.{}));
+                const Q_base = Scalar(T, .{ .L = 1 }, .{});
+                const Q_time = Scalar(T, .{ .T = 1 }, .{});
                 const V = Vector(len, Q_base);
+
+                // cross product is only defined for len == 3
+                const is_cross = comptime std.mem.eql(u8, op_name, "cross");
+                if (comptime is_cross and len != 3) {
+                    try writer.print("     --- │", .{});
+                    continue;
+                }
 
                 var samples: [SAMPLES]f64 = undefined;
 
@@ -405,6 +421,17 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
                             } else if (comptime std.mem.eql(u8, op_name, "mulByScalar")) {
                                 const s_val = Q_time{ .value = getVal(T, i +% 2, 63) };
                                 _ = v1.mulByScalar(s_val);
+                            } else if (comptime std.mem.eql(u8, op_name, "dot")) {
+                                const v2 = V.initDefault(getVal(T, i +% 5, 63));
+                                _ = v1.dot(v2);
+                            } else if (comptime std.mem.eql(u8, op_name, "cross")) {
+                                // len == 3 guaranteed by the guard above
+                                const v2 = V.initDefault(getVal(T, i +% 5, 63));
+                                _ = v1.cross(v2);
+                            } else if (comptime std.mem.eql(u8, op_name, "product")) {
+                                _ = v1.product();
+                            } else if (comptime std.mem.eql(u8, op_name, "pow")) {
+                                _ = v1.pow(2);
                             } else if (comptime std.mem.eql(u8, op_name, "length")) {
                                 _ = v1.length();
                             }
@@ -422,8 +449,8 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
         }
 
         if (o_idx < Ops.len - 1) {
-            try writer.print("├─────────────┼──────┼─────────┼─────────┼─────────┤\n", .{});
+            try writer.print("├──────────────────┼──────┼─────────┼─────────┼─────────┤\n", .{});
         }
     }
-    try writer.print("└─────────────┴──────┴─────────┴─────────┴─────────┘\n", .{});
+    try writer.print("└──────────────────┴──────┴─────────┴─────────┴─────────┘\n", .{});
 }

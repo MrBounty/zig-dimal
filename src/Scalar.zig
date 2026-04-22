@@ -63,7 +63,7 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
             const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
-            return .{ .value = lhs_val + rhs_val };
+            return .{ .value = if (comptime hlp.isInt(T)) lhs_val +| rhs_val else lhs_val + rhs_val };
         }
 
         /// Subtract two quantities. Dimensions must match — compile error otherwise.
@@ -84,7 +84,7 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
             const TargetType = Scalar(T, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
             const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
-            return .{ .value = lhs_val - rhs_val };
+            return .{ .value = if (comptime hlp.isInt(T)) lhs_val -| rhs_val else lhs_val - rhs_val };
         }
 
         /// Multiply two quantities. Dimension exponents are summed: `L¹ * T⁻¹ → L¹T⁻¹`.
@@ -104,7 +104,7 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
 
             const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
             const rhs_val = if (comptime RhsType == RhsNorm) rhs_s.value else rhs_s.to(RhsNorm).value;
-            return .{ .value = lhs_val * rhs_val };
+            return .{ .value = if (comptime hlp.isInt(T)) lhs_val *| rhs_val else lhs_val * rhs_val };
         }
 
         /// Divide two quantities. Dimension exponents are subtracted: `L¹ / T¹ → L¹T⁻¹`.
@@ -121,7 +121,7 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
             const RhsNorm = Scalar(T, RhsType.dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
             const rhs_val = if (comptime RhsType == RhsNorm) rhs_s.value else rhs_s.to(RhsNorm).value;
-            if (comptime @typeInfo(T) == .int) {
+            if (comptime hlp.isInt(T)) {
                 return .{ .value = @divTrunc(lhs_val, rhs_val) };
             } else {
                 return .{ .value = lhs_val / rhs_val };
@@ -148,8 +148,8 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
             dims.scale(exp).argsOpt(),
             scales.argsOpt(),
         ) {
-            if (comptime @typeInfo(T) == .int)
-                return .{ .value = std.math.powi(T, self.value, exp) catch @panic("Integer overflow in pow") }
+            if (comptime hlp.isInt(T))
+                return .{ .value = std.math.powi(T, self.value, exp) catch std.math.maxInt(T) }
             else
                 return .{ .value = std.math.pow(T, self.value, @as(T, @floatFromInt(exp))) };
         }
@@ -163,7 +163,7 @@ pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_o
                 @compileError("Cannot take sqrt of " ++ dims.str() ++ ": exponents must be even.");
             if (self.value < 0) return .{ .value = 0 };
 
-            if (comptime @typeInfo(T) == .int) {
+            if (comptime hlp.isInt(T)) {
                 const UnsignedT = @Int(.unsigned, @typeInfo(T).int.bits);
                 const u_len_sq = @as(UnsignedT, @intCast(self.value));
                 return .{ .value = @as(T, @intCast(std.math.sqrt(u_len_sq))) };

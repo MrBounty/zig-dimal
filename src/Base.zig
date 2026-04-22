@@ -5,6 +5,8 @@ const Dimensions = @import("Dimensions.zig");
 const Scales = @import("Scales.zig");
 const Scalar = @import("Scalar.zig").Scalar;
 
+// TODO: Add common constants like G
+
 fn PhysicalConstant(comptime d: Dimensions.ArgOpts, comptime val: f64, comptime s: Scales.ArgOpts) type {
     return struct {
         const dims = Dimensions.init(d);

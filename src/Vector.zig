@@ -272,7 +272,10 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             scales.argsOpt(),
         ) {
             var res_val: T = 1;
-            inline for (self.data) |v|
+            if (comptime hlp.isInt(T)) {
+                inline for (self.data) |v|
+                    res_val = res_val *| v;
+            } else inline for (self.data) |v|
                 res_val *= v;
             return .{ .value = res_val };
         }

@@ -10,8 +10,6 @@ const Dimension = Dimensions.Dimension;
 /// A fixed-size array of `len` elements sharing the same dimension and scale as scalar type `Q`.
 pub fn Vector(comptime len: usize, comptime Q: type) type {
     const T = Q.ValueType;
-    const d: Dimensions = Q.dims;
-    const s: Scales = Q.scales;
 
     return struct {
         data: [len]T,
@@ -19,8 +17,8 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
         const Self = @This();
         pub const ScalarType = Q;
         pub const ValueType = T;
-        pub const dims: Dimensions = d;
-        pub const scales = s;
+        pub const dims: Dimensions = Q.dims;
+        pub const scales = Q.scales;
 
         pub const zero = initDefault(0);
         pub const one = initDefault(1);
@@ -80,7 +78,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             const Tr = @TypeOf(rhs);
             var res: Vector(len, Scalar(
                 T,
-                d.sub(Tr.dims).argsOpt(),
+                dims.sub(Tr.dims).argsOpt(),
                 hlp.finerScales(Self, @TypeOf(rhs)).argsOpt(),
             )) = undefined;
             inline for (self.data, 0..) |v, i| {
@@ -183,7 +181,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
                 @compileError("Cross product is only defined for Vector(3, ...)");
 
             const Tr = @TypeOf(rhs);
-            const ResScalar = Scalar(T, d.add(Tr.dims).argsOpt(), hlp.finerScales(Self, Tr).argsOpt());
+            const ResScalar = Scalar(T, dims.add(Tr.dims).argsOpt(), hlp.finerScales(Self, Tr).argsOpt());
             const ResVec = Vector(3, ResScalar);
 
             // Calculation: [y1*z2 - z1*y2, z1*x2 - x1*z2, x1*y2 - y1*x2]

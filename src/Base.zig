@@ -5,8 +5,6 @@ const Dimensions = @import("Dimensions.zig");
 const Scales = @import("Scales.zig");
 const Scalar = @import("Scalar.zig").Scalar;
 
-// TODO: Add common constants like G
-
 fn PhysicalConstant(comptime d: Dimensions.ArgOpts, comptime val: f64, comptime s: Scales.ArgOpts) type {
     return struct {
         const dims = Dimensions.init(d);
@@ -37,11 +35,60 @@ fn BaseScalar(comptime d: Dimensions.ArgOpts) type {
     };
 }
 
-pub const Dimless = BaseScalar(.{});
+// ==========================================
+// Physical Constants
+// ==========================================
+
+pub const Constants = struct {
+    /// Speed of light in vacuum (c) [m/s]
+    pub const SpeedOfLight = PhysicalConstant(.{ .L = 1, .T = -1 }, 299792458.0, .{});
+
+    /// Planck constant (h) [J⋅s = kg⋅m²⋅s⁻¹]
+    pub const Planck = PhysicalConstant(.{ .M = 1, .L = 2, .T = -1 }, 6.62607015e-34, .{ .M = .k });
+
+    /// Reduced Planck constant (ℏ) [J⋅s]
+    pub const ReducedPlanck = PhysicalConstant(.{ .M = 1, .L = 2, .T = -1 }, 1.054571817e-34, .{ .M = .k });
+
+    /// Boltzmann constant (k_B) [J⋅K⁻¹ = kg⋅m²⋅s⁻²⋅K⁻¹]
+    pub const Boltzmann = PhysicalConstant(.{ .M = 1, .L = 2, .T = -2, .Tp = -1 }, 1.380649e-23, .{ .M = .k });
+
+    /// Newtonian constant of gravitation (G) [m³⋅kg⁻¹⋅s⁻²]
+    pub const Gravitational = PhysicalConstant(.{ .M = -1, .L = 3, .T = -2 }, 6.67430e-11, .{ .M = .k });
+
+    /// Stefan–Boltzmann constant (σ) [W⋅m⁻²⋅K⁻⁴ = kg⋅s⁻³⋅K⁻⁴]
+    pub const StefanBoltzmann = PhysicalConstant(.{ .M = 1, .T = -3, .Tp = -4 }, 5.670374419e-8, .{ .M = .k });
+
+    /// Elementary charge (e) [C = A⋅s]
+    pub const ElementaryCharge = PhysicalConstant(.{ .T = 1, .I = 1 }, 1.602176634e-19, .{});
+
+    /// Vacuum magnetic permeability (μ_0) [N⋅A⁻² = kg⋅m⋅s⁻²⋅A⁻²]
+    pub const VacuumPermeability = PhysicalConstant(.{ .M = 1, .L = 1, .T = -2, .I = -2 }, 1.25663706127e-6, .{ .M = .k });
+
+    /// Vacuum electric permittivity (ε_0) [F⋅m⁻¹ = A²⋅s⁴⋅kg⁻¹⋅m⁻³]
+    pub const VacuumPermittivity = PhysicalConstant(.{ .M = -1, .L = -3, .T = 4, .I = 2 }, 8.8541878188e-12, .{ .M = .k });
+
+    /// Electron mass (m_e) [kg]
+    pub const ElectronMass = PhysicalConstant(.{ .M = 1 }, 9.1093837139e-31, .{ .M = .k });
+
+    /// Proton mass (m_p) [kg]
+    pub const ProtonMass = PhysicalConstant(.{ .M = 1 }, 1.67262192595e-27, .{ .M = .k });
+
+    /// Neutron mass (m_n) [kg]
+    pub const NeutronMass = PhysicalConstant(.{ .M = 1 }, 1.67492750056e-27, .{ .M = .k });
+
+    /// Fine-structure constant (α) [Dimensionless]
+    pub const FineStructure = PhysicalConstant(.{}, 0.0072973525643, .{});
+
+    /// Avogadro constant (N_A) [mol⁻¹]
+    /// Note: Assuming mol is currently treated as dimensionless in the base system,
+    /// otherwise requires adding an `.N` dimension to Dimensions.ArgOpts.
+    pub const Avogadro = PhysicalConstant(.{}, 6.02214076e23, .{});
+};
 
 // ==========================================
 // Base Quantities
 // ==========================================
+pub const Dimless = BaseScalar(.{});
 pub const Meter = BaseScalar(.{ .L = 1 });
 pub const Second = BaseScalar(.{ .T = 1 });
 pub const Gramm = BaseScalar(.{ .M = 1 });
@@ -107,31 +154,6 @@ pub const Frequency = BaseScalar(.{ .T = -1 });
 pub const Viscosity = BaseScalar(.{ .M = 1, .L = -1, .T = -1 });
 pub const SurfaceTension = BaseScalar(.{ .M = 1, .T = -2 }); // Corrected from MT-2a
 
-// ==========================================
-// Physical Constants
-// ==========================================
-pub const Constants = struct {
-    /// Speed of light in vacuum
-    pub const c = Speed.Constant(299792458.0, Scales.init(.{}));
-
-    /// Standard gravity
-    pub const g = Acceleration.Constant(9.80665, Scales.init(.{}));
-
-    /// Newton's Gravitational Constant: L³ M⁻¹ T⁻²
-    pub const GravitationalConstant = PhysicalConstant(
-        .{ .L = 3, .M = -1, .T = -2 },
-        6.67430e-11,
-        Scales.init(.{}),
-    );
-
-    /// Planck Constant: M L² T⁻¹
-    pub const Planck = PhysicalConstant(
-        .{ .M = 1, .L = 2, .T = -1 },
-        6.62607015e-34,
-        Scales.init(.{}),
-    );
-};
-
 test "BaseQuantities - Core dimensions instantiation" {
     // Basic types via generic wrappers
     const M = Meter.Of(f32);
@@ -189,4 +211,41 @@ test "BaseQuantities - Electric combinations" {
     const charge = current.mul(time);
     try std.testing.expectEqual(6.0, charge.value);
     try std.testing.expect(ElectricCharge.dims.eql(@TypeOf(charge).dims));
+}
+
+test "Constants - Initialization and dimension checks" {
+    // Speed of Light
+    const c = Constants.SpeedOfLight.Of(f64);
+    try std.testing.expectEqual(299792458.0, c.value);
+    try std.testing.expectEqual(1, @TypeOf(c).dims.get(.L));
+    try std.testing.expectEqual(-1, @TypeOf(c).dims.get(.T));
+
+    // Electron Mass (verifying scale as well)
+    const me = Constants.ElectronMass.Of(f64);
+    try std.testing.expectEqual(9.1093837139e-31, me.value);
+    try std.testing.expectEqual(1, @TypeOf(me).dims.get(.M));
+    try std.testing.expectEqual(.k, @TypeOf(me).scales.get(.M)); // Should be scaled to kg
+
+    // Boltzmann Constant (Complex derived dimensions)
+    const kb = Constants.Boltzmann.Of(f64);
+    try std.testing.expectEqual(1.380649e-23, kb.value);
+    try std.testing.expectEqual(1, @TypeOf(kb).dims.get(.M));
+    try std.testing.expectEqual(2, @TypeOf(kb).dims.get(.L));
+    try std.testing.expectEqual(-2, @TypeOf(kb).dims.get(.T));
+    try std.testing.expectEqual(-1, @TypeOf(kb).dims.get(.Tp));
+    try std.testing.expectEqual(.k, @TypeOf(kb).scales.get(.M));
+
+    // Vacuum Permittivity
+    const eps0 = Constants.VacuumPermittivity.Of(f64);
+    try std.testing.expectEqual(8.8541878188e-12, eps0.value);
+    try std.testing.expectEqual(-1, @TypeOf(eps0).dims.get(.M));
+    try std.testing.expectEqual(-3, @TypeOf(eps0).dims.get(.L));
+    try std.testing.expectEqual(4, @TypeOf(eps0).dims.get(.T));
+    try std.testing.expectEqual(2, @TypeOf(eps0).dims.get(.I));
+
+    // Fine Structure Constant (Dimensionless)
+    const alpha = Constants.FineStructure.Of(f64);
+    try std.testing.expectEqual(0.0072973525643, alpha.value);
+    try std.testing.expectEqual(0, @TypeOf(alpha).dims.get(.M));
+    try std.testing.expectEqual(0, @TypeOf(alpha).dims.get(.L));
 }

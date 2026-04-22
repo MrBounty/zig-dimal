@@ -7,9 +7,44 @@ const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
-// TODO:
-//  - Be able to use comptime float and int and T for mulBy ect
-//  Which endup being Dimension less
+// ---------------------------------------------------------------------------
+// RHS normalisation helpers
+// ---------------------------------------------------------------------------
+
+/// Returns true if `T` is a `Scalar_` type (has `dims`, `scales`, and `value`).
+pub fn isScalarType(comptime T: type) bool {
+    return @typeInfo(T) == .@"struct" and
+        @hasDecl(T, "dims") and
+        @hasDecl(T, "scales") and
+        @hasField(T, "value");
+}
+
+/// Resolve the Scalar type that `rhs` will be treated as.
+///
+/// Accepted rhs types:
+///   - Any `Scalar_` type               → returned as-is
+///   - `comptime_int` / `comptime_float` → dimensionless `Scalar_(BaseT, {}, {})`
+///   - `BaseT` (the scalar's value type) → dimensionless `Scalar_(BaseT, {}, {})`
+///
+/// Everything else is a compile error, including other int/float types.
+pub fn rhsScalarType(comptime BaseT: type, comptime RhsT: type) type {
+    if (comptime isScalarType(RhsT)) return RhsT;
+    if (comptime RhsT == comptime_int or RhsT == comptime_float or RhsT == BaseT)
+        return Scalar_(BaseT, Dimensions.init(.{}), Scales.init(.{}));
+    @compileError(
+        "rhs must be a Scalar, " ++ @typeName(BaseT) ++
+            ", comptime_int, or comptime_float; got " ++ @typeName(RhsT),
+    );
+}
+
+/// Convert `rhs` to its normalised Scalar form (see `rhsScalarType`).
+pub inline fn toRhsScalar(comptime BaseT: type, rhs: anytype) rhsScalarType(BaseT, @TypeOf(rhs)) {
+    if (comptime isScalarType(@TypeOf(rhs))) return rhs;
+    const DimLess = Scalar_(BaseT, Dimensions.init(.{}), Scales.init(.{}));
+    return DimLess{ .value = @as(BaseT, rhs) };
+}
+
+// ---------------------------------------------------------------------------
 
 /// A dimensioned scalar value. `T` is the numeric type, `d` the dimension exponents, `s` the SI scales.
 /// All dimension and unit tracking is resolved at comptime — zero runtime overhead.
@@ -36,79 +71,111 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
         /// Scales of this type
         pub const scales = s;
 
+        // ---------------------------------------------------------------
+        // Internal: resolved-rhs shorthands
+        // ---------------------------------------------------------------
+
+        /// Scalar type that `rhs` normalises to (bare numbers → dimensionless).
+        inline fn RhsT(comptime Rhs: type) type {
+            return rhsScalarType(T, Rhs);
+        }
+
+        /// Normalise `rhs` (bare number or Scalar) into a proper Scalar value.
+        inline fn rhs(r: anytype) RhsT(@TypeOf(r)) {
+            return toRhsScalar(T, r);
+        }
+
+        // ---------------------------------------------------------------
+        // Arithmetic
+        // ---------------------------------------------------------------
+
         /// Add two quantities. Dimensions must match — compile error otherwise.
         /// Scales are auto-resolved to the finer of the two.
-        pub inline fn add(self: Self, rhs: anytype) Scalar_(
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`
+        /// (bare numbers are treated as dimensionless).
+        pub inline fn add(self: Self, r: anytype) Scalar_(
             T,
             dims,
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            hlp.finerScales(Self, RhsT(@TypeOf(r))),
         ) {
-            if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
-            if (comptime @TypeOf(rhs) == Self)
-                return .{ .value = self.value + rhs.value };
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            if (comptime !dims.eql(RhsType.dims))
+                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
+            if (comptime RhsType == Self)
+                return .{ .value = self.value + rhs_s.value };
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
-            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
-
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return .{ .value = lhs_val + rhs_val };
         }
 
         /// Subtract two quantities. Dimensions must match — compile error otherwise.
         /// Scales are auto-resolved to the finer of the two.
-        pub inline fn sub(self: Self, rhs: anytype) Scalar_(
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
+        pub inline fn sub(self: Self, r: anytype) Scalar_(
             T,
             dims,
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            hlp.finerScales(Self, RhsT(@TypeOf(r))),
         ) {
-            if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in sub: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
-            if (comptime @TypeOf(rhs) == Self)
-                return .{ .value = self.value - rhs.value };
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            if (comptime !dims.eql(RhsType.dims))
+                @compileError("Dimension mismatch in sub: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
+            if (comptime RhsType == Self)
+                return .{ .value = self.value - rhs_s.value };
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
-            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
-
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return .{ .value = lhs_val - rhs_val };
         }
 
         /// Multiply two quantities. Dimension exponents are summed: `L¹ * T⁻¹ → L¹T⁻¹`.
-        pub inline fn mulBy(self: Self, rhs: anytype) Scalar_(
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`
+        /// (bare numbers are treated as dimensionless — dimensions pass through unchanged).
+        pub inline fn mulBy(self: Self, r: anytype) Scalar_(
             T,
-            dims.add(@TypeOf(rhs).dims),
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            dims.add(RhsT(@TypeOf(r)).dims),
+            hlp.finerScales(Self, RhsT(@TypeOf(r))),
         ) {
-            const RhsType = @TypeOf(rhs);
-            const SelfNorm = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const RhsNorm = Scalar_(T, RhsType.dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            const SelfNorm = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const RhsNorm = Scalar_(T, RhsType.dims, hlp.finerScales(Self, RhsType));
             if (comptime Self == SelfNorm and RhsType == RhsNorm)
-                return .{ .value = self.value * rhs.value };
+                return .{ .value = self.value * rhs_s.value };
 
             const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
-            const rhs_val = if (comptime RhsType == RhsNorm) rhs.value else rhs.to(RhsNorm).value;
+            const rhs_val = if (comptime RhsType == RhsNorm) rhs_s.value else rhs_s.to(RhsNorm).value;
             return .{ .value = lhs_val * rhs_val };
         }
 
         /// Divide two quantities. Dimension exponents are subtracted: `L¹ / T¹ → L¹T⁻¹`.
         /// Integer types use truncating division.
-        pub inline fn divBy(self: Self, rhs: anytype) Scalar_(
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
+        pub inline fn divBy(self: Self, r: anytype) Scalar_(
             T,
-            dims.sub(@TypeOf(rhs).dims),
-            hlp.finerScales(Self, @TypeOf(rhs)),
+            dims.sub(RhsT(@TypeOf(r)).dims),
+            hlp.finerScales(Self, RhsT(@TypeOf(r))),
         ) {
-            const RhsType = @TypeOf(rhs);
-            const SelfNorm = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const RhsNorm = Scalar_(T, RhsType.dims, hlp.finerScales(Self, @TypeOf(rhs)));
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            const SelfNorm = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const RhsNorm = Scalar_(T, RhsType.dims, hlp.finerScales(Self, RhsType));
             const lhs_val = if (comptime Self == SelfNorm) self.value else self.to(SelfNorm).value;
-            const rhs_val = if (comptime RhsType == RhsNorm) rhs.value else rhs.to(RhsNorm).value;
+            const rhs_val = if (comptime RhsType == RhsNorm) rhs_s.value else rhs_s.to(RhsNorm).value;
             if (comptime @typeInfo(T) == .int) {
                 return .{ .value = @divTrunc(lhs_val, rhs_val) };
             } else {
                 return .{ .value = lhs_val / rhs_val };
             }
         }
+
+        // ---------------------------------------------------------------
+        // Unary
+        // ---------------------------------------------------------------
 
         /// Returns the absolute value of the quantity.
         /// Dimensions and scales remain entirely unchanged.
@@ -149,6 +216,10 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
                 return .{ .value = @sqrt(self.value) };
             }
         }
+
+        // ---------------------------------------------------------------
+        // Conversion
+        // ---------------------------------------------------------------
 
         /// Convert to a compatible unit type. The scale ratio is computed at comptime.
         /// Compile error if dimensions don't match.
@@ -193,93 +264,115 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
             }
         }
 
+        // ---------------------------------------------------------------
+        // Comparisons
+        // ---------------------------------------------------------------
+
         /// Compares two Scalar for exact equality.
         /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
-        pub inline fn eq(self: Self, rhs: anytype) bool {
-            if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
-            if (comptime @TypeOf(rhs) == Self)
-                return self.value == rhs.value;
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
+        pub inline fn eq(self: Self, r: anytype) bool {
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            if (comptime !dims.eql(RhsType.dims))
+                @compileError("Dimension mismatch in eq: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
+            if (comptime RhsType == Self)
+                return self.value == rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
-            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
-
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val == rhs_val;
         }
 
         /// Compares two quantities for inequality.
         /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
-        pub inline fn ne(self: Self, rhs: anytype) bool {
-            if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
-            if (comptime @TypeOf(rhs) == Self)
-                return self.value != rhs.value;
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
+        pub inline fn ne(self: Self, r: anytype) bool {
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            if (comptime !dims.eql(RhsType.dims))
+                @compileError("Dimension mismatch in ne: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
+            if (comptime RhsType == Self)
+                return self.value != rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
-            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
-
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val != rhs_val;
         }
 
         /// Returns true if this quantity is strictly greater than the right-hand side.
         /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
-        pub inline fn gt(self: Self, rhs: anytype) bool {
-            if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
-            if (comptime @TypeOf(rhs) == Self)
-                return self.value > rhs.value;
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
+        pub inline fn gt(self: Self, r: anytype) bool {
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            if (comptime !dims.eql(RhsType.dims))
+                @compileError("Dimension mismatch in gt: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
+            if (comptime RhsType == Self)
+                return self.value > rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
-            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
-
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val > rhs_val;
         }
+
         /// Returns true if this quantity is greater than or equal to the right-hand side.
         /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
-        pub inline fn gte(self: Self, rhs: anytype) bool {
-            if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
-            if (comptime @TypeOf(rhs) == Self)
-                return self.value >= rhs.value;
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
+        pub inline fn gte(self: Self, r: anytype) bool {
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            if (comptime !dims.eql(RhsType.dims))
+                @compileError("Dimension mismatch in gte: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
+            if (comptime RhsType == Self)
+                return self.value >= rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
-            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
-
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val >= rhs_val;
         }
 
         /// Returns true if this quantity is strictly less than the right-hand side.
         /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
-        pub inline fn lt(self: Self, rhs: anytype) bool {
-            if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
-            if (comptime @TypeOf(rhs) == Self)
-                return self.value < rhs.value;
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
+        pub inline fn lt(self: Self, r: anytype) bool {
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            if (comptime !dims.eql(RhsType.dims))
+                @compileError("Dimension mismatch in lt: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
+            if (comptime RhsType == Self)
+                return self.value < rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
-            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
-
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val < rhs_val;
         }
+
         /// Returns true if this quantity is less than or equal to the right-hand side.
         /// Dimensions must match — compile error otherwise. Scales are auto-resolved.
-        pub inline fn lte(self: Self, rhs: anytype) bool {
-            if (comptime !dims.eql(@TypeOf(rhs).dims))
-                @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs).dims.str());
-            if (comptime @TypeOf(rhs) == Self)
-                return self.value <= rhs.value;
+        /// `rhs` may be a Scalar, `T`, `comptime_int`, or `comptime_float`.
+        pub inline fn lte(self: Self, r: anytype) bool {
+            const rhs_s = rhs(r);
+            const RhsType = @TypeOf(rhs_s);
+            if (comptime !dims.eql(RhsType.dims))
+                @compileError("Dimension mismatch in lte: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
+            if (comptime RhsType == Self)
+                return self.value <= rhs_s.value;
 
-            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, @TypeOf(rhs)));
-            const lhs_val = if (comptime @TypeOf(self) == TargetType) self.value else self.to(TargetType).value;
-            const rhs_val = if (comptime @TypeOf(rhs) == TargetType) rhs.value else rhs.to(TargetType).value;
-
+            const TargetType = Scalar_(T, dims, hlp.finerScales(Self, RhsType));
+            const lhs_val = if (comptime Self == TargetType) self.value else self.to(TargetType).value;
+            const rhs_val = if (comptime RhsType == TargetType) rhs_s.value else rhs_s.to(TargetType).value;
             return lhs_val <= rhs_val;
         }
+
+        // ---------------------------------------------------------------
+        // Vector helpers
+        // ---------------------------------------------------------------
 
         /// Return a `Vector(len, Self)` type.
         pub fn Vec(_: Self, comptime len: comptime_int) type {
@@ -295,6 +388,10 @@ pub fn Scalar_(comptime T: type, comptime d: Dimensions, comptime s: Scales) typ
         pub fn vec3(self: Self) Vec3 {
             return Vec3.initDefault(self.value);
         }
+
+        // ---------------------------------------------------------------
+        // Formatting
+        // ---------------------------------------------------------------
 
         pub fn formatNumber(
             self: Self,
@@ -636,4 +733,75 @@ test "Pow" {
     const area_f = d_f.pow(3);
     try std.testing.expectEqual(8.0, area_f.value);
     try std.testing.expectEqual(3, @TypeOf(area_f).dims.get(.L));
+}
+
+test "mulBy comptime_int" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const d = Meter{ .value = 7 };
+
+    const scaled = d.mulBy(3); // comptime_int → dimensionless
+    try std.testing.expectEqual(21, scaled.value);
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+    try std.testing.expectEqual(0, @TypeOf(scaled).dims.get(.T));
+}
+
+test "mulBy comptime_float" {
+    const MeterF = Scalar(f64, .{ .L = 1 }, .{});
+    const d = MeterF{ .value = 4.0 };
+
+    const scaled = d.mulBy(2.5); // comptime_float → dimensionless
+    try std.testing.expectApproxEqAbs(10.0, scaled.value, 1e-9);
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+}
+
+test "mulBy T (value type)" {
+    const MeterF = Scalar(f32, .{ .L = 1 }, .{});
+    const d = MeterF{ .value = 6.0 };
+    const factor: f32 = 0.5;
+
+    const scaled = d.mulBy(factor); // bare f32 → dimensionless
+    try std.testing.expectApproxEqAbs(3.0, scaled.value, 1e-6);
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+}
+
+test "divBy comptime_int" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const d = Meter{ .value = 100 };
+
+    const half = d.divBy(4); // comptime_int → dimensionless divisor
+    try std.testing.expectEqual(25, half.value);
+    try std.testing.expectEqual(1, @TypeOf(half).dims.get(.L));
+}
+
+test "divBy comptime_float" {
+    const MeterF = Scalar(f64, .{ .L = 1 }, .{});
+    const d = MeterF{ .value = 9.0 };
+
+    const r = d.divBy(3.0);
+    try std.testing.expectApproxEqAbs(3.0, r.value, 1e-9);
+    try std.testing.expectEqual(1, @TypeOf(r).dims.get(.L));
+}
+
+test "add/sub bare number on dimensionless scalar" {
+    // Bare numbers are dimensionless, so add/sub only works when Self is also dimensionless.
+    const DimLess = Scalar(i128, .{}, .{});
+    const a = DimLess{ .value = 10 };
+
+    const b = a.add(5); // comptime_int, both dimensionless → ok
+    try std.testing.expectEqual(15, b.value);
+
+    const c = a.sub(3);
+    try std.testing.expectEqual(7, c.value);
+}
+
+test "comparisons with comptime_int on dimensionless scalar" {
+    const DimLess = Scalar(i128, .{}, .{});
+    const x = DimLess{ .value = 42 };
+
+    try std.testing.expect(x.eq(42));
+    try std.testing.expect(x.ne(0));
+    try std.testing.expect(x.gt(10));
+    try std.testing.expect(x.gte(42));
+    try std.testing.expect(x.lt(100));
+    try std.testing.expect(x.lte(42));
 }

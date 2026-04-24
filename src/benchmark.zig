@@ -161,7 +161,6 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
     const ITERS: usize = 100_000;
     const SAMPLES: usize = 5;
 
-    // Helper to safely get a value of type T from a loop index
     const getValT = struct {
         fn f(comptime TT: type, i: usize) TT {
             const v = (i % 100) + 1;
@@ -171,7 +170,8 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
 
     const Types = .{ i32, i64, i128, f32, f64 };
     const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
-    const Ops = .{ "add", "mul", "div" };
+    // Expanded Ops to match bench_Scalar
+    const Ops = .{ "add", "sub", "mul", "div", "abs", "eq", "gt" };
 
     try writer.print(
         \\
@@ -198,11 +198,24 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
                     for (0..ITERS) |i| {
                         const a = getValT(T, i);
                         const b = getValT(T, 2);
+
+                        // Native logic branch
                         _ = if (comptime std.mem.eql(u8, op_name, "add"))
                             a + b
+                        else if (comptime std.mem.eql(u8, op_name, "sub"))
+                            a - b
                         else if (comptime std.mem.eql(u8, op_name, "mul"))
                             a * b
-                        else if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b;
+                        else if (comptime std.mem.eql(u8, op_name, "div"))
+                            if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b
+                        else if (comptime std.mem.eql(u8, op_name, "abs"))
+                            if (comptime @typeInfo(T) == .int) @abs(a) else @as(T, @abs(a))
+                        else if (comptime std.mem.eql(u8, op_name, "eq"))
+                            a == b
+                        else if (comptime std.mem.eql(u8, op_name, "gt"))
+                            a > b
+                        else
+                            unreachable;
                     }
                     const n_end = getTime();
                     native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
@@ -213,12 +226,23 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
                         const qa = M{ .value = getValT(T, i) };
                         const qb = if (comptime std.mem.eql(u8, op_name, "div")) S{ .value = getValT(T, 2) } else M{ .value = getValT(T, 2) };
 
+                        // Scalar logic branch
                         _ = if (comptime std.mem.eql(u8, op_name, "add"))
                             qa.add(qb)
+                        else if (comptime std.mem.eql(u8, op_name, "sub"))
+                            qa.sub(qb)
                         else if (comptime std.mem.eql(u8, op_name, "mul"))
                             qa.mul(qb)
+                        else if (comptime std.mem.eql(u8, op_name, "div"))
+                            qa.div(qb)
+                        else if (comptime std.mem.eql(u8, op_name, "abs"))
+                            qa.abs()
+                        else if (comptime std.mem.eql(u8, op_name, "eq"))
+                            qa.eq(qb)
+                        else if (comptime std.mem.eql(u8, op_name, "gt"))
+                            qa.gt(qb)
                         else
-                            qa.div(qb);
+                            unreachable;
                     }
                     const q_end = getTime();
                     quantity_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));

@@ -2,7 +2,7 @@ name: Deploy MkDocs to Garage
 on:
   push:
     branches:
-      - main  # Adjust to your branch name
+      - simd  # Adjust to your branch name
 
 jobs:
   build-and-deploy:

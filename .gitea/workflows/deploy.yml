@@ -12,10 +12,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build MkDocs Material
-        # We use the official image to build the site into the 'site' folder
         run: |
           docker run --rm -v "${{ github.workspace }}:/docs" \
-          squidfunk/mkdocs-material build
+          squidfunk/mkdocs-material build -f /docs/mkdocs.yml 
 
       - name: Sync to Garage S3
         uses: https://github.com/jakejarvis/s3-sync-action@master

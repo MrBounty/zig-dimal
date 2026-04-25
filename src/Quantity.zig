@@ -1,6 +1,7 @@
 const std = @import("std");
 const hlp = @import("helper.zig");
 const Scales = @import("Scales.zig");
+const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
@@ -62,9 +63,6 @@ pub fn Quantity(
         pub inline fn splat(v: T) Self {
             return .{ .data = @splat(v) };
         }
-
-        /// Backward-compat alias used by Vector tests (`initDefault`).
-        pub const initDefault = splat;
 
         pub const zero: Self = splat(0);
         pub const one: Self = splat(1);
@@ -185,7 +183,7 @@ pub fn Quantity(
             const rhs_q = rhs(r);
             const RhsType = @TypeOf(rhs_q);
             const SelfNorm = Quantity(T, N, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
-            const RhsNorm = Quantity(T, N, RhsType.dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
+            const RhsNorm = Quantity(T, RhsType.Len, RhsType.dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const l: Vec = if (comptime Self == SelfNorm) self.data else self.to(SelfNorm).data;
             const rr_base = if (comptime RhsType == RhsNorm) rhs_q else rhs_q.to(RhsNorm);
             const rr: Vec = broadcastToVec(RhsNorm, rr_base);
@@ -203,7 +201,7 @@ pub fn Quantity(
             const rhs_q = rhs(r);
             const RhsType = @TypeOf(rhs_q);
             const SelfNorm = Quantity(T, N, dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
-            const RhsNorm = Quantity(T, N, RhsType.dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
+            const RhsNorm = Quantity(T, RhsType.Len, RhsType.dims.argsOpt(), hlp.finerScales(Self, RhsType).argsOpt());
             const l: Vec = if (comptime Self == SelfNorm) self.data else self.to(SelfNorm).data;
             const rr_base = if (comptime RhsType == RhsNorm) rhs_q else rhs_q.to(RhsNorm);
             const rr: Vec = broadcastToVec(RhsNorm, rr_base);
@@ -285,17 +283,27 @@ pub fn Quantity(
         // Conversion
         // ---------------------------------------------------------------
 
-        /// Convert to a compatible quantity type.  Dimension mismatch is a compile error.
+        /// Convert to a compatible quantity type. Dimension mismatch is a compile error.
+        /// Dest can have the same Len as this quantity, or Len == 1 (in which case it
+        /// will be automatically recast to this quantity's Len).
         /// The scale ratio is computed entirely at comptime; the only runtime cost is
         /// a SIMD multiply-by-splat (or element-wise cast for cross-numeric-type conversions).
-        pub inline fn to(self: Self, comptime Dest: type) Dest {
-            if (comptime !dims.eql(Dest.dims))
-                @compileError("Dimension mismatch in to: " ++ dims.str() ++ " vs " ++ Dest.dims.str());
-            if (comptime Self == Dest) return self;
-            comptime std.debug.assert(Dest.Len == N);
+        pub inline fn to(
+            self: Self,
+            comptime Dest: type,
+        ) Quantity(Dest.ValueType, N, Dest.dims.argsOpt(), Dest.scales.argsOpt()) {
+            const ActualDest = Quantity(Dest.ValueType, N, Dest.dims.argsOpt(), Dest.scales.argsOpt());
 
-            const DestT = Dest.ValueType;
-            const ratio = comptime (scales.getFactor(dims) / Dest.scales.getFactor(Dest.dims));
+            if (comptime !dims.eql(ActualDest.dims))
+                @compileError("Dimension mismatch in to: " ++ dims.str() ++ " vs " ++ ActualDest.dims.str());
+
+            if (comptime Self == ActualDest) return self;
+
+            // Allow Dest to be exactly matching Len or a Scalar (Len == 1)
+            comptime std.debug.assert(Dest.Len == N or Dest.Len == 1);
+
+            const DestT = ActualDest.ValueType;
+            const ratio = comptime (scales.getFactor(dims) / ActualDest.scales.getFactor(ActualDest.dims));
             const DestVec = @Vector(N, DestT);
 
             // ── Same numeric type path ──
@@ -947,17 +955,305 @@ test "Vector initiate" {
     try std.testing.expect(m.data[0] == 1);
 }
 
-// test "Format VectorX" {
-//     const MeterPerSecondSq = Scalar(f32, .{ .L = 1, .T = -2 }, .{ .T = .n });
-//     const KgMeterPerSecond = Scalar(f32, .{ .M = 1, .L = 1, .T = -1 }, .{ .M = .k });
-//
-//     const accel = MeterPerSecondSq.Vec3.initDefault(9.81);
-//     const momentum = KgMeterPerSecond.Vec3{ .data = .{ 43, 0, 11 } };
-//
-//     var buf: [64]u8 = undefined;
-//     var res = try std.fmt.bufPrint(&buf, "{d}", .{accel});
-//     try std.testing.expectEqualStrings("(9.81, 9.81, 9.81)m.ns⁻²", res);
-//
-//     res = try std.fmt.bufPrint(&buf, "{d:.2}", .{momentum});
-//     try std.testing.expectEqualStrings("(43.00, 0.00, 11.00)m.kg.s⁻¹", res);
-// }
+test "Vector format" {
+    const MeterPerSecondSq = Scalar(f32, .{ .L = 1, .T = -2 }, .{ .T = .n });
+    const KgMeterPerSecond = Scalar(f32, .{ .M = 1, .L = 1, .T = -1 }, .{ .M = .k });
+
+    const accel = MeterPerSecondSq.Vec3.splat(9.81);
+    const momentum = KgMeterPerSecond.Vec3{ .data = .{ 43, 0, 11 } };
+
+    var buf: [64]u8 = undefined;
+    var res = try std.fmt.bufPrint(&buf, "{d}", .{accel});
+    try std.testing.expectEqualStrings("(9.81, 9.81, 9.81)m.ns⁻²", res);
+
+    res = try std.fmt.bufPrint(&buf, "{d:.2}", .{momentum});
+    try std.testing.expectEqualStrings("(43.00, 0.00, 11.00)m.kg.s⁻¹", res);
+}
+
+test "Vector Vec3 Init and Basic Arithmetic" {
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
+    const Vec3M = Meter.Vec3;
+
+    // Test zero, one, initDefault
+    const v_zero = Vec3M.zero;
+    try std.testing.expectEqual(0, v_zero.data[0]);
+    try std.testing.expectEqual(0, v_zero.data[1]);
+    try std.testing.expectEqual(0, v_zero.data[2]);
+
+    const v_one = Vec3M.one;
+    try std.testing.expectEqual(1, v_one.data[0]);
+    try std.testing.expectEqual(1, v_one.data[1]);
+    try std.testing.expectEqual(1, v_one.data[2]);
+
+    const v_def = Vec3M.splat(5);
+    try std.testing.expectEqual(5, v_def.data[0]);
+    try std.testing.expectEqual(5, v_def.data[1]);
+    try std.testing.expectEqual(5, v_def.data[2]);
+
+    // Test add and sub
+    const v1 = Vec3M{ .data = .{ 10, 20, 30 } };
+    const v2 = Vec3M{ .data = .{ 2, 4, 6 } };
+
+    const added = v1.add(v2);
+    try std.testing.expectEqual(12, added.data[0]);
+    try std.testing.expectEqual(24, added.data[1]);
+    try std.testing.expectEqual(36, added.data[2]);
+
+    const subbed = v1.sub(v2);
+    try std.testing.expectEqual(8, subbed.data[0]);
+    try std.testing.expectEqual(16, subbed.data[1]);
+    try std.testing.expectEqual(24, subbed.data[2]);
+
+    // Test negate
+    const neg = v1.negate();
+    try std.testing.expectEqual(-10, neg.data[0]);
+    try std.testing.expectEqual(-20, neg.data[1]);
+    try std.testing.expectEqual(-30, neg.data[2]);
+}
+
+test "Vector Kinematics (Scalar Mul/Div)" {
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
+    const Second = Scalar(i32, .{ .T = 1 }, .{});
+    const Vec3M = Meter.Vec3;
+
+    const pos = Vec3M{ .data = .{ 100, 200, 300 } };
+    const time = Second.splat(10);
+
+    // Vector divided by scalar (Velocity = Position / Time)
+    const vel = pos.divScalar(time);
+    try std.testing.expectEqual(10, vel.data[0]);
+    try std.testing.expectEqual(20, vel.data[1]);
+    try std.testing.expectEqual(30, vel.data[2]);
+    try std.testing.expectEqual(1, @TypeOf(vel).dims.get(.L));
+    try std.testing.expectEqual(-1, @TypeOf(vel).dims.get(.T));
+
+    // Vector multiplied by scalar (Position = Velocity * Time)
+    const new_pos = vel.mulScalar(time);
+    try std.testing.expectEqual(100, new_pos.data[0]);
+    try std.testing.expectEqual(200, new_pos.data[1]);
+    try std.testing.expectEqual(300, new_pos.data[2]);
+    try std.testing.expectEqual(1, @TypeOf(new_pos).dims.get(.L));
+    try std.testing.expectEqual(0, @TypeOf(new_pos).dims.get(.T));
+}
+
+test "Vector Element-wise Math and Scaling" {
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
+    const Vec3M = Meter.Vec3;
+
+    const v1 = Vec3M{ .data = .{ 10, 20, 30 } };
+    const v2 = Vec3M{ .data = .{ 2, 5, 10 } };
+
+    // Element-wise division
+    const div = v1.div(v2);
+    try std.testing.expectEqual(5, div.data[0]);
+    try std.testing.expectEqual(4, div.data[1]);
+    try std.testing.expectEqual(3, div.data[2]);
+    try std.testing.expectEqual(0, @TypeOf(div).dims.get(.L)); // M / M = Dimensionless
+}
+
+test "Vector Conversions" {
+    const KiloMeter = Scalar(i32, .{ .L = 1 }, .{ .L = .k });
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
+
+    const v_km = KiloMeter.Vec3{ .data = .{ 1, 2, 3 } };
+    const v_m = v_km.to(Meter);
+
+    try std.testing.expectEqual(1000, v_m.data[0]);
+    try std.testing.expectEqual(2000, v_m.data[1]);
+    try std.testing.expectEqual(3000, v_m.data[2]);
+
+    // Type checking the result
+    try std.testing.expectEqual(1, @TypeOf(v_m).dims.get(.L));
+    try std.testing.expectEqual(UnitScale.none, @TypeOf(v_m).scales.get(.L));
+}
+
+test "Vector Length" {
+    const MeterInt = Scalar(i32, .{ .L = 1 }, .{});
+    const MeterFloat = Scalar(f32, .{ .L = 1 }, .{});
+
+    // Integer length
+    // 3-4-5 triangle on XY plane
+    const v_int = MeterInt.Vec3{ .data = .{ 3, 4, 0 } };
+    try std.testing.expectEqual(25, v_int.lengthSqr());
+    try std.testing.expectEqual(5, v_int.length());
+
+    // Float length
+    const v_float = MeterFloat.Vec3{ .data = .{ 3.0, 4.0, 0.0 } };
+    try std.testing.expectApproxEqAbs(@as(f32, 25.0), v_float.lengthSqr(), 1e-4);
+    try std.testing.expectApproxEqAbs(@as(f32, 5.0), v_float.length(), 1e-4);
+}
+
+test "Vector Comparisons" {
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
+    const KiloMeter = Scalar(f32, .{ .L = 1 }, .{ .L = .k });
+
+    const v1 = Meter.Vec3{ .data = .{ 1000.0, 500.0, 0.0 } };
+    const v2 = KiloMeter.Vec3{ .data = .{ 1.0, 0.5, 0.0 } };
+    const v3 = KiloMeter.Vec3{ .data = .{ 1.0, 0.6, 0.0 } };
+
+    // 1. Equality (Whole vector)
+    try std.testing.expect(v1.eqAll(v2));
+    try std.testing.expect(v1.neAll(v3));
+
+    // 2. Element-wise Ordered Comparison
+    const higher = v3.gt(v1); // compares 1km, 0.6km, 0km vs 1000m, 500m, 0m
+    try std.testing.expectEqual(false, higher[0]); // 1km == 1000m
+    try std.testing.expectEqual(true, higher[1]); // 0.6km > 500m
+    try std.testing.expectEqual(false, higher[2]); // 0 == 0
+
+    // 3. Element-wise Equal Comparison
+    const equal = v3.eq(v1); // compares 1km, 0.6km, 0km vs 1000m, 500m, 0m
+    try std.testing.expectEqual(true, equal[0]); // 1km == 1000m
+    try std.testing.expectEqual(false, equal[1]); // 0.6km > 500m
+    try std.testing.expectEqual(true, equal[2]); // 0 == 0
+
+    // 3. Less than or equal
+    const low_eq = v1.lte(v3);
+    try std.testing.expect(low_eq[0] and low_eq[1] and low_eq[2]);
+}
+
+test "Vector vs Scalar Comparisons" {
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
+    const KiloMeter = Scalar(f32, .{ .L = 1 }, .{ .L = .k });
+
+    const positions = Meter.Vec3{ .data = .{ 500.0, 1200.0, 3000.0 } };
+    const threshold = KiloMeter.splat(1); // 1km (1000m)
+
+    // Check which axes exceed the 1km threshold
+    const exceeded = positions.gtScalar(threshold);
+
+    try std.testing.expectEqual(false, exceeded[0]); // 500m  > 1km is false
+    try std.testing.expectEqual(true, exceeded[1]); // 1200m > 1km is true
+    try std.testing.expectEqual(true, exceeded[2]); // 3000m > 1km is true
+
+    // Check for equality (broadcasted)
+    const exact_match = positions.eqScalar(Meter.splat(500));
+    try std.testing.expect(exact_match[0] == true);
+    try std.testing.expect(exact_match[1] == false);
+}
+
+test "Vector Dot and Cross Products" {
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
+    const Newton = Scalar(f32, .{ .M = 1, .L = 1, .T = -2 }, .{});
+
+    const pos = Meter.Vec3{ .data = .{ 10.0, 0.0, 0.0 } };
+    const force = Newton.Vec3{ .data = .{ 5.0, 5.0, 0.0 } };
+
+    // 1. Dot Product (Work = F dot d)
+    const work = force.dot(pos);
+    try std.testing.expectEqual(50.0, work.value());
+    // Dimensions should be M¹L²T⁻² (Energy/Joules)
+    try std.testing.expectEqual(1, @TypeOf(work).dims.get(.M));
+    try std.testing.expectEqual(2, @TypeOf(work).dims.get(.L));
+    try std.testing.expectEqual(-2, @TypeOf(work).dims.get(.T));
+
+    // 2. Cross Product (Torque = r cross F)
+    const torque = pos.cross(force);
+    try std.testing.expectEqual(0.0, torque.data[0]);
+    try std.testing.expectEqual(0.0, torque.data[1]);
+    try std.testing.expectEqual(50.0, torque.data[2]);
+    // Torque dimensions are same as Energy but as a Vector
+    try std.testing.expectEqual(2, @TypeOf(torque).dims.get(.L));
+}
+
+test "Vector Abs, Pow, Sqrt and Product" {
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
+
+    const v1 = Meter.Vec3{ .data = .{ -2.0, 3.0, -4.0 } };
+
+    // 1. Abs
+    const v_abs = v1.abs();
+    try std.testing.expectEqual(2.0, v_abs.data[0]);
+    try std.testing.expectEqual(4.0, v_abs.data[2]);
+
+    // 2. Product (L1 * L1 * L1 = L3)
+    const vol = v_abs.product();
+    try std.testing.expectEqual(24.0, vol.value());
+    try std.testing.expectEqual(3, @TypeOf(vol).dims.get(.L));
+
+    // 3. Pow (Scalar exponent: (L1)^2 = L2)
+    const area_vec = v_abs.pow(2);
+    try std.testing.expectEqual(4.0, area_vec.data[0]);
+    try std.testing.expectEqual(16.0, area_vec.data[2]);
+    try std.testing.expectEqual(2, @TypeOf(area_vec).dims.get(.L));
+
+    // 4. Sqrt
+    const sqrted = area_vec.sqrt();
+    try std.testing.expectEqual(2, sqrted.data[0]);
+    try std.testing.expectEqual(4, sqrted.data[2]);
+    try std.testing.expectEqual(1, @TypeOf(sqrted).dims.get(.L));
+}
+
+test "Vector mulScalar comptime_int" {
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
+    const v = Meter.Vec3{ .data = .{ 1, 2, 3 } };
+
+    const scaled = v.mulScalar(10); // comptime_int → dimensionless
+    try std.testing.expectEqual(10, scaled.data[0]);
+    try std.testing.expectEqual(20, scaled.data[1]);
+    try std.testing.expectEqual(30, scaled.data[2]);
+    // Dimensions unchanged: L¹ × dimensionless = L¹
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+    try std.testing.expectEqual(0, @TypeOf(scaled).dims.get(.T));
+}
+
+test "Vector mulScalar comptime_float" {
+    const MeterF = Scalar(f32, .{ .L = 1 }, .{});
+    const v = MeterF.Vec3{ .data = .{ 1.0, 2.0, 4.0 } };
+
+    const scaled = v.mulScalar(0.5); // comptime_float → dimensionless
+    try std.testing.expectApproxEqAbs(0.5, scaled.data[0], 1e-6);
+    try std.testing.expectApproxEqAbs(1.0, scaled.data[1], 1e-6);
+    try std.testing.expectApproxEqAbs(2.0, scaled.data[2], 1e-6);
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+}
+
+test "Vector mulScalar T (value type)" {
+    const MeterF = Scalar(f32, .{ .L = 1 }, .{});
+    const v = MeterF.Vec3{ .data = .{ 3.0, 6.0, 9.0 } };
+    const factor: f32 = 2.0;
+
+    const scaled = v.mulScalar(factor);
+    try std.testing.expectApproxEqAbs(6.0, scaled.data[0], 1e-6);
+    try std.testing.expectApproxEqAbs(12.0, scaled.data[1], 1e-6);
+    try std.testing.expectApproxEqAbs(18.0, scaled.data[2], 1e-6);
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+}
+
+test "Vector divScalar comptime_int" {
+    const Meter = Scalar(i32, .{ .L = 1 }, .{});
+    const v = Meter.Vec3{ .data = .{ 10, 20, 30 } };
+
+    const halved = v.divScalar(2); // comptime_int → dimensionless divisor
+    try std.testing.expectEqual(5, halved.data[0]);
+    try std.testing.expectEqual(10, halved.data[1]);
+    try std.testing.expectEqual(15, halved.data[2]);
+    try std.testing.expectEqual(1, @TypeOf(halved).dims.get(.L));
+}
+
+test "Vector divScalar comptime_float" {
+    const MeterF = Scalar(f64, .{ .L = 1 }, .{});
+    const v = MeterF.Vec3{ .data = .{ 9.0, 6.0, 3.0 } };
+
+    const r = v.divScalar(3.0);
+    try std.testing.expectApproxEqAbs(3.0, r.data[0], 1e-9);
+    try std.testing.expectApproxEqAbs(2.0, r.data[1], 1e-9);
+    try std.testing.expectApproxEqAbs(1.0, r.data[2], 1e-9);
+    try std.testing.expectEqual(1, @TypeOf(r).dims.get(.L));
+}
+
+test "Vector eqScalar / gtScalar with comptime_int on dimensionless vector" {
+    // Bare numbers are dimensionless, so comparisons only work when vector is dimensionless too.
+    const DimLess = Scalar(i32, .{}, .{});
+    const v = DimLess.Vec3{ .data = .{ 1, 2, 3 } };
+
+    const eq_res = v.eqScalar(2);
+    try std.testing.expectEqual(false, eq_res[0]);
+    try std.testing.expectEqual(true, eq_res[1]);
+    try std.testing.expectEqual(false, eq_res[2]);
+
+    const gt_res = v.gtScalar(1);
+    try std.testing.expectEqual(false, gt_res[0]);
+    try std.testing.expectEqual(true, gt_res[1]);
+    try std.testing.expectEqual(true, gt_res[2]);
+}

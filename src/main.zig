@@ -7,7 +7,7 @@ pub const Scales = @import("Scales.zig");
 pub const Base = @import("Base.zig");
 
 test {
-    _ = @import("Scalar.zig");
+    _ = @import("Quantity.zig");
     // _ = @import("Vector.zig");
     // _ = @import("Dimensions.zig");
     // _ = @import("Scales.zig");

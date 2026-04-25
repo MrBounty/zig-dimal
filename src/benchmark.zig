@@ -491,12 +491,12 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
 }
 
 fn vectorSIMDvsNative(comptime T: type, writer: *std.Io.Writer) !void {
-    const iterations: u64 = 100_000;
+    const iterations: u64 = 10_000;
     const lens = [_]u32{ 1, 2, 3, 4, 5, 10, 100, 1_000, 10_000 };
 
     try writer.print("\nSIMD Speedup Analysis: {s}\n", .{@typeName(T)});
     try writer.print("┌────────────┬────────────┬────────────┬────────────┐\n", .{});
-    try writer.print("│ Vector Len │ Scalar (ns)│ Vector (ns)│ Speedup    │\n", .{});
+    try writer.print("│ Vector Len │ Scalar (us)│ Vector (us)│ Speedup    │\n", .{});
     try writer.print("├────────────┼────────────┼────────────┼────────────┤\n", .{});
 
     inline for (lens) |vector_len| {
@@ -511,7 +511,7 @@ fn vectorSIMDvsNative(comptime T: type, writer: *std.Io.Writer) !void {
             else
                 scalar_val = scalar_val + 1;
         }
-        const scalar_time = start_scalar.durationTo(getTime()).toNanoseconds();
+        const scalar_time = start_scalar.durationTo(getTime()).toMicroseconds();
 
         // --- Vector Test ---
         var vector_val: @Vector(vector_len, T) = @splat(20);
@@ -525,7 +525,7 @@ fn vectorSIMDvsNative(comptime T: type, writer: *std.Io.Writer) !void {
             else
                 vector_val = vector_val + increment;
         }
-        const vector_time = start_vector.durationTo(getTime()).toNanoseconds();
+        const vector_time = start_vector.durationTo(getTime()).toMicroseconds();
 
         // --- Results ---
         const s_float = @as(f64, @floatFromInt(scalar_time));
@@ -541,6 +541,7 @@ fn vectorSIMDvsNative(comptime T: type, writer: *std.Io.Writer) !void {
             vector_time,
             speedup,
         });
+        try writer.flush();
 
         std.mem.doNotOptimizeAway(scalar_val);
         std.mem.doNotOptimizeAway(vector_val);

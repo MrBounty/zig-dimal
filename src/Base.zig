@@ -3,7 +3,7 @@ const std = @import("std");
 // Adjust these imports to match your actual file names
 const Dimensions = @import("Dimensions.zig");
 const Scales = @import("Scales.zig");
-const Scalar = @import("Scalar.zig").Scalar;
+const Scalar = @import("Quantity.zig").Scalar;
 
 fn PhysicalConstant(comptime d: Dimensions.ArgOpts, comptime val: f64, comptime s: Scales.ArgOpts) type {
     return struct {
@@ -12,7 +12,7 @@ fn PhysicalConstant(comptime d: Dimensions.ArgOpts, comptime val: f64, comptime 
 
         /// Instantiates the constant into a specific numeric type.
         pub fn Of(comptime T: type) Scalar(T, d, s) {
-            return .{ .value = @as(T, @floatCast(val)) };
+            return .{ .data = @splat(@as(T, @floatCast(val))) };
         }
     };
 }
@@ -157,78 +157,78 @@ pub const SurfaceTension = BaseScalar(.{ .M = 1, .T = -2 }); // Corrected from M
 test "BaseQuantities - Core dimensions instantiation" {
     // Basic types via generic wrappers
     const M = Meter.Of(f32);
-    const distance = M{ .value = 100.0 };
-    try std.testing.expectEqual(100.0, distance.value);
+    const distance = M.splat(100);
+    try std.testing.expectEqual(100.0, distance.value());
     try std.testing.expectEqual(1, M.dims.get(.L));
     try std.testing.expectEqual(0, M.dims.get(.T));
 
     // Test specific scale variants
     const Kmh = Speed.Scaled(f32, .{ .L = .k, .T = .hour });
-    const speed = Kmh{ .value = 120.0 };
-    try std.testing.expectEqual(120.0, speed.value);
+    const speed = Kmh.splat(120);
+    try std.testing.expectEqual(120.0, speed.value());
     try std.testing.expectEqual(.k, @TypeOf(speed).scales.get(.L));
     try std.testing.expectEqual(.hour, @TypeOf(speed).scales.get(.T));
 }
 
 test "BaseQuantities - Kinematics equations" {
-    const d = Meter.Of(f32){ .value = 50.0 };
-    const t = Second.Of(f32){ .value = 2.0 };
+    const d = Meter.Of(f32).splat(50.0);
+    const t = Second.Of(f32).splat(2.0);
 
     // Velocity = Distance / Time
     const v = d.div(t);
-    try std.testing.expectEqual(25.0, v.value);
+    try std.testing.expectEqual(25.0, v.value());
     try std.testing.expect(Speed.dims.eql(@TypeOf(v).dims));
 
     // Acceleration = Velocity / Time
     const a = v.div(t);
-    try std.testing.expectEqual(12.5, a.value);
+    try std.testing.expectEqual(12.5, a.value());
     try std.testing.expect(Acceleration.dims.eql(@TypeOf(a).dims));
 }
 
 test "BaseQuantities - Dynamics (Force and Work)" {
     // 10 kg
-    const m = Gramm.Scaled(f32, .{ .M = .k }){ .value = 10.0 };
+    const m = Gramm.Scaled(f32, .{ .M = .k }).splat(10.0);
     // 9.8 m/s^2
-    const a = Acceleration.Of(f32){ .value = 9.8 };
+    const a = Acceleration.Of(f32).splat(9.8);
 
     // Force = mass * acceleration
     const f = m.mul(a);
-    try std.testing.expectEqual(98, f.value);
+    try std.testing.expectEqual(98, f.value());
     try std.testing.expect(Force.dims.eql(@TypeOf(f).dims));
 
     // Energy (Work) = Force * distance
-    const distance = Meter.Of(f32){ .value = 5.0 };
+    const distance = Meter.Of(f32).splat(5.0);
     const energy = f.mul(distance);
-    try std.testing.expectEqual(490, energy.value);
+    try std.testing.expectEqual(490, energy.value());
     try std.testing.expect(Energy.dims.eql(@TypeOf(energy).dims));
 }
 
 test "BaseQuantities - Electric combinations" {
-    const current = ElectricCurrent.Of(f32){ .value = 2.0 }; // 2 A
-    const time = Second.Of(f32){ .value = 3.0 }; // 3 s
+    const current = ElectricCurrent.Of(f32).splat(2); // 2 A
+    const time = Second.Of(f32).splat(3.0); // 3 s
 
     // Charge = Current * time
     const charge = current.mul(time);
-    try std.testing.expectEqual(6.0, charge.value);
+    try std.testing.expectEqual(6.0, charge.value());
     try std.testing.expect(ElectricCharge.dims.eql(@TypeOf(charge).dims));
 }
 
 test "Constants - Initialization and dimension checks" {
     // Speed of Light
     const c = Constants.SpeedOfLight.Of(f64);
-    try std.testing.expectEqual(299792458.0, c.value);
+    try std.testing.expectEqual(299792458.0, c.value());
     try std.testing.expectEqual(1, @TypeOf(c).dims.get(.L));
     try std.testing.expectEqual(-1, @TypeOf(c).dims.get(.T));
 
     // Electron Mass (verifying scale as well)
     const me = Constants.ElectronMass.Of(f64);
-    try std.testing.expectEqual(9.1093837139e-31, me.value);
+    try std.testing.expectEqual(9.1093837139e-31, me.value());
     try std.testing.expectEqual(1, @TypeOf(me).dims.get(.M));
     try std.testing.expectEqual(.k, @TypeOf(me).scales.get(.M)); // Should be scaled to kg
 
     // Boltzmann Constant (Complex derived dimensions)
     const kb = Constants.Boltzmann.Of(f64);
-    try std.testing.expectEqual(1.380649e-23, kb.value);
+    try std.testing.expectEqual(1.380649e-23, kb.value());
     try std.testing.expectEqual(1, @TypeOf(kb).dims.get(.M));
     try std.testing.expectEqual(2, @TypeOf(kb).dims.get(.L));
     try std.testing.expectEqual(-2, @TypeOf(kb).dims.get(.T));
@@ -237,7 +237,7 @@ test "Constants - Initialization and dimension checks" {
 
     // Vacuum Permittivity
     const eps0 = Constants.VacuumPermittivity.Of(f64);
-    try std.testing.expectEqual(8.8541878188e-12, eps0.value);
+    try std.testing.expectEqual(8.8541878188e-12, eps0.value());
     try std.testing.expectEqual(-1, @TypeOf(eps0).dims.get(.M));
     try std.testing.expectEqual(-3, @TypeOf(eps0).dims.get(.L));
     try std.testing.expectEqual(4, @TypeOf(eps0).dims.get(.T));
@@ -245,7 +245,7 @@ test "Constants - Initialization and dimension checks" {
 
     // Fine Structure Constant (Dimensionless)
     const alpha = Constants.FineStructure.Of(f64);
-    try std.testing.expectEqual(0.0072973525643, alpha.value);
+    try std.testing.expectEqual(0.0072973525643, alpha.value());
     try std.testing.expectEqual(0, @TypeOf(alpha).dims.get(.M));
     try std.testing.expectEqual(0, @TypeOf(alpha).dims.get(.L));
 }

@@ -1,7 +1,7 @@
 const std = @import("std");
 const Io = std.Io;
-const Scalar = @import("Scalar.zig").Scalar;
-const Vector = @import("Vector.zig").Vector;
+const Scalar = @import("Quantity.zig").Scalar;
+const Vector = @import("Quantity.zig").Vector;
 
 var io: Io = undefined;
 pub fn main(init: std.process.Init) !void {
@@ -11,25 +11,25 @@ pub fn main(init: std.process.Init) !void {
 
     io = init.io;
 
-    try vectorSIMDvsNative(f64, &stdout_writer.interface);
-    try stdout_writer.flush();
-    try vectorSIMDvsNative(f32, &stdout_writer.interface);
-    try stdout_writer.flush();
-    try vectorSIMDvsNative(i32, &stdout_writer.interface);
-    try stdout_writer.flush();
-    try vectorSIMDvsNative(i64, &stdout_writer.interface);
-    try stdout_writer.flush();
-    try vectorSIMDvsNative(i128, &stdout_writer.interface);
-    try stdout_writer.flush();
+    // try vectorSIMDvsNative(f64, &stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try vectorSIMDvsNative(f32, &stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try vectorSIMDvsNative(i32, &stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try vectorSIMDvsNative(i64, &stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try vectorSIMDvsNative(i128, &stdout_writer.interface);
+    // try stdout_writer.flush();
 
-    // try bench_Scalar(&stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try bench_vsNative(&stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try bench_crossTypeVsNative(&stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try bench_Vector(&stdout_writer.interface);
-    // try stdout_writer.flush();
+    try bench_Scalar(&stdout_writer.interface);
+    try stdout_writer.flush();
+    try bench_vsNative(&stdout_writer.interface);
+    try stdout_writer.flush();
+    try bench_crossTypeVsNative(&stdout_writer.interface);
+    try stdout_writer.flush();
+    try bench_Vector(&stdout_writer.interface);
+    try stdout_writer.flush();
 }
 
 fn getTime() Io.Timestamp {
@@ -111,23 +111,23 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
                     std.mem.doNotOptimizeAway(
                         {
                             _ = if (comptime std.mem.eql(u8, op_name, "add"))
-                                (M{ .value = getVal(T, i, 63) }).add(M{ .value = getVal(T, i +% 7, 63) })
+                                (M.splat(getVal(T, i, 63))).add(M.splat(getVal(T, i +% 7, 63)))
                             else if (comptime std.mem.eql(u8, op_name, "sub"))
-                                (M{ .value = getVal(T, i +% 10, 63) }).sub(M{ .value = getVal(T, i, 63) })
+                                (M.splat(getVal(T, i +% 10, 63))).sub(M.splat(getVal(T, i, 63)))
                             else if (comptime std.mem.eql(u8, op_name, "mul"))
-                                (M{ .value = getVal(T, i, 63) }).mul(M{ .value = getVal(T, i +% 1, 63) })
+                                (M.splat(getVal(T, i, 63))).mul(M.splat(getVal(T, i +% 1, 63)))
                             else if (comptime std.mem.eql(u8, op_name, "div"))
-                                (M{ .value = getVal(T, i +% 10, 63) }).div(S{ .value = getVal(T, i, 63) })
+                                (M.splat(getVal(T, i +% 10, 63))).div(S.splat(getVal(T, i, 63)))
                             else if (comptime std.mem.eql(u8, op_name, "to"))
-                                (KM{ .value = getVal(T, i, 15) }).to(M)
+                                (KM.splat(getVal(T, i, 15))).to(M)
                             else if (comptime std.mem.eql(u8, op_name, "abs"))
-                                (M{ .value = getVal(T, i, 63) }).abs()
+                                (M.splat(getVal(T, i, 63))).abs()
                             else if (comptime std.mem.eql(u8, op_name, "eq"))
-                                (M{ .value = getVal(T, i, 63) }).eq(M{ .value = getVal(T, i +% 3, 63) })
+                                (M.splat(getVal(T, i, 63))).eq(M.splat(getVal(T, i +% 3, 63)))
                             else if (comptime std.mem.eql(u8, op_name, "gt"))
-                                (M{ .value = getVal(T, i, 63) }).gt(M{ .value = getVal(T, i +% 3, 63) })
+                                (M.splat(getVal(T, i, 63))).gt(M.splat(getVal(T, i +% 3, 63)))
                             else
-                                (M{ .value = getVal(T, i, 63) }).mul(3);
+                                (M.splat(getVal(T, i, 63))).mul(3);
                         },
                     );
                 }
@@ -234,8 +234,8 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
                     // --- 2. Benchmark Scalar ---
                     const q_start = getTime();
                     for (0..ITERS) |i| {
-                        const qa = M{ .value = getValT(T, i) };
-                        const qb = if (comptime std.mem.eql(u8, op_name, "div")) S{ .value = getValT(T, 2) } else M{ .value = getValT(T, 2) };
+                        const qa = M.splat(getValT(T, i));
+                        const qb = if (comptime std.mem.eql(u8, op_name, "div")) S.splat(getValT(T, 2)) else M.splat(getValT(T, 2));
 
                         // Scalar logic branch
                         _ = if (comptime std.mem.eql(u8, op_name, "add"))
@@ -349,11 +349,11 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
                         // --- 2. Benchmark Scalar ---
                         const q_start = getTime();
                         for (0..ITERS) |i| {
-                            const qa = M1{ .value = getValT(T1, i) };
+                            const qa = M1.splat(getValT(T1, i));
                             const qb = if (comptime std.mem.eql(u8, op_name, "div"))
-                                S2{ .value = getValT(T2, 2) }
+                                S2.splat(getValT(T2, 2))
                             else
-                                M2{ .value = getValT(T2, 2) };
+                                M2.splat(getValT(T2, 2));
 
                             _ = if (comptime std.mem.eql(u8, op_name, "add"))
                                 qa.add(qb)
@@ -412,15 +412,15 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
         \\ Vector<N, T> benchmark — {d} iterations, {d} samples/cell
         \\ (Results in ns/op; "---" = not applicable for this length)
         \\
-        \\┌──────────────────┬──────┬─────────┬─────────┬─────────┐
-        \\│ Operation        │ Type │   Len=3 │   Len=4 │  Len=16 │
-        \\├──────────────────┼──────┼─────────┼─────────┼─────────┤
+        \\┌──────────────────┬──────┬─────────┬─────────┬─────────┬─────────┬─────────┐
+        \\│ Operation        │ Type │   Len=1 │   Len=3 │   Len=4 │  Len=16 │ Len=100 │
+        \\├──────────────────┼──────┼─────────┼─────────┼─────────┼─────────┼─────────┤
         \\
     , .{ ITERS, SAMPLES });
 
     const Types = .{ i32, i64, i128, f32, f64 };
     const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
-    const Lengths = .{ 3, 4, 16 };
+    const Lengths = .{ 1, 3, 4, 16, 100 };
     // "cross" is only valid for len=3; other cells will show "  ---  "
     const Ops = .{ "add", "div", "mulScalar", "dot", "cross", "product", "pow", "length" };
 
@@ -446,22 +446,22 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
                     for (0..SAMPLES) |s_idx| {
                         const t_start = getTime();
                         for (0..ITERS) |i| {
-                            const v1 = V.initDefault(getVal(T, i, 63));
+                            const v1 = V.splat(getVal(T, i, 63));
 
                             if (comptime std.mem.eql(u8, op_name, "add")) {
-                                const v2 = V.initDefault(getVal(T, i +% 7, 63));
+                                const v2 = V.splat(getVal(T, i +% 7, 63));
                                 _ = v1.add(v2);
                             } else if (comptime std.mem.eql(u8, op_name, "div")) {
-                                _ = v1.div(V.initDefault(getVal(T, i +% 2, 63)));
+                                _ = v1.div(V.splat(getVal(T, i +% 2, 63)));
                             } else if (comptime std.mem.eql(u8, op_name, "mulScalar")) {
-                                const s_val = Q_time{ .value = getVal(T, i +% 2, 63) };
+                                const s_val = Q_time.splat(getVal(T, i +% 2, 63));
                                 _ = v1.mulScalar(s_val);
                             } else if (comptime std.mem.eql(u8, op_name, "dot")) {
-                                const v2 = V.initDefault(getVal(T, i +% 5, 63));
+                                const v2 = V.splat(getVal(T, i +% 5, 63));
                                 _ = v1.dot(v2);
                             } else if (comptime std.mem.eql(u8, op_name, "cross")) {
                                 // len == 3 guaranteed by the guard above
-                                const v2 = V.initDefault(getVal(T, i +% 5, 63));
+                                const v2 = V.splat(getVal(T, i +% 5, 63));
                                 _ = v1.cross(v2);
                             } else if (comptime std.mem.eql(u8, op_name, "product")) {
                                 _ = v1.product();
@@ -484,10 +484,10 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
         }
 
         if (o_idx < Ops.len - 1) {
-            try writer.print("├──────────────────┼──────┼─────────┼─────────┼─────────┤\n", .{});
+            try writer.print("├──────────────────┼──────┼─────────┼─────────┼─────────┼─────────┼─────────┤\n", .{});
         }
     }
-    try writer.print("└──────────────────┴──────┴─────────┴─────────┴─────────┘\n", .{});
+    try writer.print("└──────────────────┴──────┴─────────┴─────────┴─────────┴─────────┴─────────┘\n", .{});
 }
 
 fn vectorSIMDvsNative(comptime T: type, writer: *std.Io.Writer) !void {

@@ -1,7 +1,7 @@
 const std = @import("std");
 const hlp = @import("helper.zig");
 
-const Scalar = @import("Scalar.zig").Scalar;
+const Scalar = @import("Quantity.zig").Scalar;
 const Scales = @import("Scales.zig");
 const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");

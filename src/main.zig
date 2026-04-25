@@ -1,6 +1,5 @@
 const std = @import("std");
 
-pub const Scalar = @import("Scalar.zig").Scalar;
 pub const Vector = @import("Vector.zig").Vector;
 pub const Dimensions = @import("Dimensions.zig");
 pub const Scales = @import("Scales.zig");

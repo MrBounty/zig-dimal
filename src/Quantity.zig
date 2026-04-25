@@ -5,7 +5,7 @@ const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
 // ---------------------------------------------------------------------------
-// Quantity — the single unified dimensioned type.
+// Quantity — single unified dimensioned type.
 //
 //   T  : element numeric type  (f32, f64, i32, i128, …)
 //   N  : lane count            (1 = Scalar, >1 = Vector)
@@ -20,6 +20,7 @@ const Dimension = Dimensions.Dimension;
 //   Vector(N, Q)       ≡ Quantity(Q.ValueType, N, Q.dims.argsOpt(), Q.scales.argsOpt())
 // ---------------------------------------------------------------------------
 //
+// To investigate:
 // @reduce(comptime op: std.builtin.ReduceOp, value: anytype) E
 // @select(comptime T: type, pred: @Vector(len, bool), a: @Vector(len, T), b: @Vector(len, T)) @Vector(len, T)
 // @shuffle(comptime E: type, a: @Vector(a_len, E), b: @Vector(b_len, E), comptime mask: @Vector(mask_len, i32)) @Vector(mask_len, E)
@@ -613,11 +614,13 @@ pub fn Quantity(
     };
 }
 
+// Scalar tests
+
 pub fn Scalar(comptime T: type, comptime d: Dimensions.ArgOpts, comptime s: Scales.ArgOpts) type {
     return Quantity(T, 1, d, s);
 }
 
-test "Generate quantity" {
+test "Scalar initiat" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{ .L = @enumFromInt(-3) });
     const Second = Scalar(f32, .{ .T = 1 }, .{ .T = .n });
 
@@ -628,7 +631,7 @@ test "Generate quantity" {
     try std.testing.expectEqual(2, time.value());
 }
 
-test "Comparisons (eq, ne, gt, gte, lt, lte)" {
+test "Scalar comparisons (eq, ne, gt, gte, lt, lte)" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const KiloMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
 
@@ -654,7 +657,7 @@ test "Comparisons (eq, ne, gt, gte, lt, lte)" {
     try std.testing.expect(m1000.lte(km2));
 }
 
-test "Add" {
+test "Scalar Add" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
 
     const distance = Meter.splat(10);
@@ -681,7 +684,7 @@ test "Add" {
     try std.testing.expectEqual(1, @TypeOf(added4).dims.get(.L));
 }
 
-test "Sub" {
+test "Scalar Sub" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const KiloMeter_f = Scalar(f64, .{ .L = 1 }, .{ .L = .k });
 
@@ -699,7 +702,7 @@ test "Sub" {
     try std.testing.expectApproxEqAbs(2000, diff3.value(), 1e-4);
 }
 
-test "MulBy" {
+test "Scalar MulBy" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const Second = Scalar(f32, .{ .T = 1 }, .{});
 
@@ -717,7 +720,7 @@ test "MulBy" {
     try std.testing.expectEqual(2, @TypeOf(area).dims.get(.L));
 }
 
-test "MulBy with scale" {
+test "Scalar MulBy with scale" {
     const KiloMeter = Scalar(f32, .{ .L = 1 }, .{ .L = .k });
     const KiloGram = Scalar(f32, .{ .M = 1 }, .{ .M = .k });
 
@@ -728,7 +731,7 @@ test "MulBy with scale" {
     try std.testing.expectEqual(1, @TypeOf(prod).dims.get(.M));
 }
 
-test "MulBy with type change" {
+test "Scalar MulBy with type change" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
     const Second = Scalar(f64, .{ .T = 1 }, .{});
     const KmSec = Scalar(i64, .{ .L = 1, .T = 1 }, .{ .L = .k });
@@ -743,7 +746,7 @@ test "MulBy with type change" {
     try std.testing.expectApproxEqAbs(12.0, area_time_f.value(), 0.0001);
 }
 
-test "MulBy small" {
+test "Scalar MulBy small" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{ .L = .n });
     const Second = Scalar(f32, .{ .T = 1 }, .{});
 
@@ -754,7 +757,7 @@ test "MulBy small" {
     try std.testing.expectEqual(12, area_time.value());
 }
 
-test "MulBy dimensionless" {
+test "Scalar MulBy dimensionless" {
     const DimLess = Scalar(i128, .{}, .{});
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
 
@@ -763,7 +766,7 @@ test "MulBy dimensionless" {
     try std.testing.expectEqual(21, scaled.value());
 }
 
-test "Sqrt" {
+test "Scalar Sqrt" {
     const MeterSquare = Scalar(i128, .{ .L = 2 }, .{});
 
     var d = MeterSquare.splat(9);
@@ -781,7 +784,7 @@ test "Sqrt" {
     try std.testing.expectApproxEqAbs(4.472135955, scaled2.value(), 1e-4);
 }
 
-test "Chained: velocity and acceleration" {
+test "Scalar Chained: velocity and acceleration" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const Second = Scalar(f32, .{ .T = 1 }, .{});
 
@@ -795,7 +798,7 @@ test "Chained: velocity and acceleration" {
     try std.testing.expectEqual(5, accel.value());
 }
 
-test "DivBy integer exact" {
+test "Scalar DivBy integer exact" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const Second = Scalar(f32, .{ .T = 1 }, .{});
 
@@ -806,7 +809,7 @@ test "DivBy integer exact" {
     try std.testing.expectEqual(30, vel.value());
 }
 
-test "Finer scales skip dim 0" {
+test "Scalar Finer scales skip dim 0" {
     const Dimless = Scalar(i128, .{}, .{});
     const KiloMetre = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
 
@@ -818,7 +821,7 @@ test "Finer scales skip dim 0" {
     try std.testing.expectEqual(Scales.UnitScale.k, @TypeOf(vel).scales.get(.L));
 }
 
-test "Conversion chain: km -> m -> cm" {
+test "Scalar Conversion chain: km -> m -> cm" {
     const KiloMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const CentiMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .c });
@@ -831,7 +834,7 @@ test "Conversion chain: km -> m -> cm" {
     try std.testing.expectEqual(1_500_000, cm.value());
 }
 
-test "Conversion: hours -> minutes -> seconds" {
+test "Scalar Conversion: hours -> minutes -> seconds" {
     const Hour = Scalar(i128, .{ .T = 1 }, .{ .T = .hour });
     const Minute = Scalar(i128, .{ .T = 1 }, .{ .T = .min });
     const Second = Scalar(i128, .{ .T = 1 }, .{});
@@ -844,7 +847,7 @@ test "Conversion: hours -> minutes -> seconds" {
     try std.testing.expectEqual(3600, sec.value());
 }
 
-test "Format Scalar" {
+test "Scalar Format Scalar" {
     const MeterPerSecondSq = Scalar(f32, .{ .L = 1, .T = -2 }, .{ .T = .n });
     const Meter = Scalar(f32, .{ .L = 1 }, .{});
 
@@ -859,7 +862,7 @@ test "Format Scalar" {
     try std.testing.expectEqualStrings("9.81m.ns⁻²", res);
 }
 
-test "Abs" {
+test "Scalar Abs" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const m1 = Meter.splat(-50);
     const m2 = m1.abs();
@@ -871,7 +874,7 @@ test "Abs" {
     try std.testing.expectEqual(42.5, m3.abs().value());
 }
 
-test "Pow" {
+test "Scalar Pow" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const d = Meter.splat(4);
 
@@ -882,7 +885,7 @@ test "Pow" {
     try std.testing.expectEqual(64, volume.value());
 }
 
-test "mul comptime_int" {
+test "Scalar mul comptime_int" {
     const Meter = Scalar(i128, .{ .L = 1 }, .{});
     const d = Meter.splat(7);
 
@@ -890,7 +893,7 @@ test "mul comptime_int" {
     try std.testing.expectEqual(21, scaled.value());
 }
 
-test "add/sub bare number on dimensionless scalar" {
+test "Scalar add/sub bare number on dimensionless scalar" {
     const DimLess = Scalar(i128, .{}, .{});
     const a = DimLess.splat(10);
 
@@ -901,7 +904,7 @@ test "add/sub bare number on dimensionless scalar" {
     try std.testing.expectEqual(7, c.value());
 }
 
-test "Imperial length scales" {
+test "Scalar Imperial length scales" {
     const Foot = Scalar(f64, .{ .L = 1 }, .{ .L = .ft });
     const Meter = Scalar(f64, .{ .L = 1 }, .{});
     const Inch = Scalar(f64, .{ .L = 1 }, .{ .L = .inch });
@@ -913,7 +916,7 @@ test "Imperial length scales" {
     try std.testing.expectApproxEqAbs(1.0, twelve_in.to(Foot).value(), 1e-9);
 }
 
-test "Imperial mass scales" {
+test "Scalar Imperial mass scales" {
     const Pound = Scalar(f64, .{ .M = 1 }, .{ .M = .lb });
     const Ounce = Scalar(f64, .{ .M = 1 }, .{ .M = .oz });
 
@@ -923,10 +926,38 @@ test "Imperial mass scales" {
     try std.testing.expectApproxEqAbs(2.5, total.value(), 1e-6);
 }
 
-test "comparisons with comptime_int on dimensionless scalar" {
+test "Scalar comparisons with comptime_int on dimensionless scalar" {
     const DimLess = Scalar(i128, .{}, .{});
     const x = DimLess.splat(42);
 
     try std.testing.expect(x.eq(42));
     try std.testing.expect(x.gt(10));
 }
+
+// Vector tests
+
+pub fn Vector(N: comptime_int, Q: type) type {
+    return Quantity(Q.ValueType, N, Q.dims.argsOpt(), Q.scales.argsOpt());
+}
+
+test "Vector initiate" {
+    const Meter = Vector(4, Scalar(f32, .{ .L = 1 }, .{}));
+    const m = Meter.splat(1);
+
+    try std.testing.expect(m.data[0] == 1);
+}
+
+// test "Format VectorX" {
+//     const MeterPerSecondSq = Scalar(f32, .{ .L = 1, .T = -2 }, .{ .T = .n });
+//     const KgMeterPerSecond = Scalar(f32, .{ .M = 1, .L = 1, .T = -1 }, .{ .M = .k });
+//
+//     const accel = MeterPerSecondSq.Vec3.initDefault(9.81);
+//     const momentum = KgMeterPerSecond.Vec3{ .data = .{ 43, 0, 11 } };
+//
+//     var buf: [64]u8 = undefined;
+//     var res = try std.fmt.bufPrint(&buf, "{d}", .{accel});
+//     try std.testing.expectEqualStrings("(9.81, 9.81, 9.81)m.ns⁻²", res);
+//
+//     res = try std.fmt.bufPrint(&buf, "{d:.2}", .{momentum});
+//     try std.testing.expectEqualStrings("(43.00, 0.00, 11.00)m.kg.s⁻¹", res);
+// }

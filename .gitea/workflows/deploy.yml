@@ -2,7 +2,7 @@ name: Deploy MkDocs to Garage
 on:
   push:
     branches:
-      - simd  # Adjust to your branch name
+      - main  # Adjust to your branch name
 
 jobs:
   build-and-deploy:
@@ -10,8 +10,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: simd
 
       - name: Build MkDocs Material
         # We use the official image to build the site into the 'site' folder

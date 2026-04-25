@@ -46,6 +46,7 @@ pub fn Quantity(
         pub const Len: usize = N;
         pub const dims: Dimensions = Dimensions.init(d_opt);
         pub const scales: Scales = Scales.init(s_opt);
+        pub const ISQUANTITY = true;
 
         /// Scalar variant of this quantity (lane=1). Returned by dot(), product(), etc.
         pub const ScalarType: type = Quantity(T, 1, d_opt, s_opt);
@@ -220,7 +221,7 @@ pub fn Quantity(
 
         /// Absolute value of every lane.  Uses native `@abs` (SIMD for floats & ints).
         pub inline fn abs(self: Self) Self {
-            return .{ .data = @abs(self.data) };
+            return .{ .data = @bitCast(@abs(self.data)) };
         }
 
         /// Raise every lane to a comptime integer exponent.
@@ -265,11 +266,10 @@ pub fn Quantity(
                 const UnsignedT = @Int(.unsigned, @typeInfo(T).int.bits);
                 inline for (0..N) |i| {
                     const v = self.data[i];
-                    if (v < 0) {
-                        result[i] = 0;
-                        continue;
-                    }
-                    result[i] = @as(T, @intCast(std.math.sqrt(@as(UnsignedT, @intCast(v)))));
+                    if (v < 0)
+                        result[i] = 0
+                    else
+                        result[i] = @as(T, @intCast(std.math.sqrt(@as(UnsignedT, @intCast(v)))));
                 }
                 return .{ .data = result };
             }
@@ -297,28 +297,32 @@ pub fn Quantity(
             const ratio = comptime (scales.getFactor(dims) / Dest.scales.getFactor(Dest.dims));
             const DestVec = @Vector(N, DestT);
 
-            // ── Fast path: same numeric type → pure SIMD ──────────────
+            // ── Same numeric type path ──
             if (comptime T == DestT) {
-                if (comptime @typeInfo(T) == .float) {
+                if (comptime @typeInfo(T) == .float)
                     return .{ .data = self.data * @as(DestVec, @splat(@as(T, @floatCast(ratio)))) };
-                }
-                // Integer same-T
-                if (comptime ratio >= 1.0 and @round(ratio) == ratio) {
-                    const mult: T = comptime @intFromFloat(ratio);
+
+                // Integer logic: Branching prevents division by zero errors
+                if (comptime ratio >= 1.0) {
+                    // Upscaling (e.g., km -> m, ratio = 1000)
+                    const mult: T = comptime @intFromFloat(@round(ratio));
                     return .{ .data = self.data *| @as(Vec, @splat(mult)) };
+                } else {
+                    // Downscaling (e.g., m -> km, ratio = 0.001)
+                    const div_val: T = comptime @intFromFloat(@round(1.0 / ratio));
+                    var result: DestVec = undefined;
+                    const half: T = comptime @divTrunc(div_val, 2);
+
+                    inline for (0..N) |i| {
+                        const val = self.data[i];
+                        // Rounding division for integers
+                        result[i] = if (val >= 0) @divTrunc(val + half, div_val) else @divTrunc(val - half, div_val);
+                    }
+                    return .{ .data = result };
                 }
-                // Sub-unit ratio: rounded integer divide, element-wise.
-                const d: T = comptime @intFromFloat(1.0 / ratio);
-                var result: DestVec = undefined;
-                inline for (0..N) |i| {
-                    const val = self.data[i];
-                    const half: T = comptime d / 2;
-                    result[i] = if (val >= 0) @divTrunc(val + half, d) else @divTrunc(val - half, d);
-                }
-                return .{ .data = result };
             }
 
-            // ── Cross-numeric-type: go through f64 element-wise ────────
+            // ── Cross-numeric-type (unchanged) ──
             var result: DestVec = undefined;
             inline for (0..N) |i| {
                 const float_val: f64 = switch (comptime @typeInfo(T)) {
@@ -609,7 +613,7 @@ pub fn Quantity(
     };
 }
 
-fn Scalar(comptime T: type, comptime d: Dimensions.ArgOpts, comptime s: Scales.ArgOpts) type {
+pub fn Scalar(comptime T: type, comptime d: Dimensions.ArgOpts, comptime s: Scales.ArgOpts) type {
     return Quantity(T, 1, d, s);
 }
 
@@ -622,4 +626,307 @@ test "Generate quantity" {
 
     try std.testing.expectEqual(10, distance.value());
     try std.testing.expectEqual(2, time.value());
+}
+
+test "Comparisons (eq, ne, gt, gte, lt, lte)" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const KiloMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
+
+    const m1000 = Meter.splat(1000);
+    const km1 = KiloMeter.splat(1);
+    const km2 = KiloMeter.splat(2);
+
+    // Equal / Not Equal
+    try std.testing.expect(m1000.eq(km1));
+    try std.testing.expect(km1.eq(m1000));
+    try std.testing.expect(km2.ne(m1000));
+
+    // Greater Than / Greater Than or Equal
+    try std.testing.expect(km2.gt(m1000));
+    try std.testing.expect(km2.gt(km1));
+    try std.testing.expect(km1.gte(m1000));
+    try std.testing.expect(km2.gte(m1000));
+
+    // Less Than / Less Than or Equal
+    try std.testing.expect(m1000.lt(km2));
+    try std.testing.expect(km1.lt(km2));
+    try std.testing.expect(km1.lte(m1000));
+    try std.testing.expect(m1000.lte(km2));
+}
+
+test "Add" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+
+    const distance = Meter.splat(10);
+    const distance2 = Meter.splat(20);
+
+    const added = distance.add(distance2);
+    try std.testing.expectEqual(30, added.value());
+    try std.testing.expectEqual(1, @TypeOf(added).dims.get(.L));
+
+    const KiloMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
+    const distance3 = KiloMeter.splat(2);
+    const added2 = distance.add(distance3);
+    try std.testing.expectEqual(2010, added2.value());
+    try std.testing.expectEqual(1, @TypeOf(added2).dims.get(.L));
+
+    const added3 = distance3.add(distance).to(KiloMeter);
+    try std.testing.expectEqual(2, added3.value());
+    try std.testing.expectEqual(1, @TypeOf(added3).dims.get(.L));
+
+    const KiloMeter_f = Scalar(f64, .{ .L = 1 }, .{ .L = .k });
+    const distance4 = KiloMeter_f.splat(2);
+    const added4 = distance4.add(distance).to(KiloMeter_f);
+    try std.testing.expectApproxEqAbs(2.01, added4.value(), 0.000001);
+    try std.testing.expectEqual(1, @TypeOf(added4).dims.get(.L));
+}
+
+test "Sub" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const KiloMeter_f = Scalar(f64, .{ .L = 1 }, .{ .L = .k });
+
+    const a = Meter.splat(500);
+    const b = Meter.splat(200);
+
+    const diff = a.sub(b);
+    try std.testing.expectEqual(300, diff.value());
+    const diff2 = b.sub(a);
+    try std.testing.expectEqual(-300, diff2.value());
+
+    const km_f = KiloMeter_f.splat(2.5);
+    const m_f = Meter.splat(500);
+    const diff3 = km_f.sub(m_f);
+    try std.testing.expectApproxEqAbs(2000, diff3.value(), 1e-4);
+}
+
+test "MulBy" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const Second = Scalar(f32, .{ .T = 1 }, .{});
+
+    const d = Meter.splat(3.0);
+    const t = Second.splat(4.0);
+
+    const area_time = d.mul(t);
+    try std.testing.expectEqual(12, area_time.value());
+    try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.L));
+    try std.testing.expectEqual(1, @TypeOf(area_time).dims.get(.T));
+
+    const d2 = Meter.splat(5.0);
+    const area = d.mul(d2);
+    try std.testing.expectEqual(15, area.value());
+    try std.testing.expectEqual(2, @TypeOf(area).dims.get(.L));
+}
+
+test "MulBy with scale" {
+    const KiloMeter = Scalar(f32, .{ .L = 1 }, .{ .L = .k });
+    const KiloGram = Scalar(f32, .{ .M = 1 }, .{ .M = .k });
+
+    const dist = KiloMeter.splat(2.0);
+    const mass = KiloGram.splat(3.0);
+    const prod = dist.mul(mass);
+    try std.testing.expectEqual(1, @TypeOf(prod).dims.get(.L));
+    try std.testing.expectEqual(1, @TypeOf(prod).dims.get(.M));
+}
+
+test "MulBy with type change" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
+    const Second = Scalar(f64, .{ .T = 1 }, .{});
+    const KmSec = Scalar(i64, .{ .L = 1, .T = 1 }, .{ .L = .k });
+    const KmSec_f = Scalar(f32, .{ .L = 1, .T = 1 }, .{ .L = .k });
+
+    const d = Meter.splat(3.0);
+    const t = Second.splat(4.0);
+
+    const area_time = d.mul(t).to(KmSec);
+    const area_time_f = d.mul(t).to(KmSec_f);
+    try std.testing.expectEqual(12, area_time.value());
+    try std.testing.expectApproxEqAbs(12.0, area_time_f.value(), 0.0001);
+}
+
+test "MulBy small" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{ .L = .n });
+    const Second = Scalar(f32, .{ .T = 1 }, .{});
+
+    const d = Meter.splat(3.0);
+    const t = Second.splat(4.0);
+
+    const area_time = d.mul(t);
+    try std.testing.expectEqual(12, area_time.value());
+}
+
+test "MulBy dimensionless" {
+    const DimLess = Scalar(i128, .{}, .{});
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+
+    const d = Meter.splat(7);
+    const scaled = d.mul(DimLess.splat(3));
+    try std.testing.expectEqual(21, scaled.value());
+}
+
+test "Sqrt" {
+    const MeterSquare = Scalar(i128, .{ .L = 2 }, .{});
+
+    var d = MeterSquare.splat(9);
+    var scaled = d.sqrt();
+    try std.testing.expectEqual(3, scaled.value());
+    try std.testing.expectEqual(1, @TypeOf(scaled).dims.get(.L));
+
+    d = MeterSquare.splat(-5);
+    scaled = d.sqrt();
+    try std.testing.expectEqual(0, scaled.value());
+
+    const MeterSquare_f = Scalar(f64, .{ .L = 2 }, .{});
+    const d2 = MeterSquare_f.splat(20);
+    const scaled2 = d2.sqrt();
+    try std.testing.expectApproxEqAbs(4.472135955, scaled2.value(), 1e-4);
+}
+
+test "Chained: velocity and acceleration" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const Second = Scalar(f32, .{ .T = 1 }, .{});
+
+    const dist = Meter.splat(100.0);
+    const t1 = Second.splat(5.0);
+    const velocity = dist.div(t1);
+    try std.testing.expectEqual(20, velocity.value());
+
+    const t2 = Second.splat(4.0);
+    const accel = velocity.div(t2);
+    try std.testing.expectEqual(5, accel.value());
+}
+
+test "DivBy integer exact" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const Second = Scalar(f32, .{ .T = 1 }, .{});
+
+    const dist = Meter.splat(120);
+    const time = Second.splat(4);
+    const vel = dist.div(time);
+
+    try std.testing.expectEqual(30, vel.value());
+}
+
+test "Finer scales skip dim 0" {
+    const Dimless = Scalar(i128, .{}, .{});
+    const KiloMetre = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
+
+    const r = Dimless.splat(30);
+    const time = KiloMetre.splat(4);
+    const vel = r.mul(time);
+
+    try std.testing.expectEqual(120, vel.value());
+    try std.testing.expectEqual(Scales.UnitScale.k, @TypeOf(vel).scales.get(.L));
+}
+
+test "Conversion chain: km -> m -> cm" {
+    const KiloMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .k });
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const CentiMeter = Scalar(i128, .{ .L = 1 }, .{ .L = .c });
+
+    const km = KiloMeter.splat(15);
+    const m = km.to(Meter);
+    const cm = m.to(CentiMeter);
+
+    try std.testing.expectEqual(15_000, m.value());
+    try std.testing.expectEqual(1_500_000, cm.value());
+}
+
+test "Conversion: hours -> minutes -> seconds" {
+    const Hour = Scalar(i128, .{ .T = 1 }, .{ .T = .hour });
+    const Minute = Scalar(i128, .{ .T = 1 }, .{ .T = .min });
+    const Second = Scalar(i128, .{ .T = 1 }, .{});
+
+    const h = Hour.splat(1.0);
+    const min = h.to(Minute);
+    const sec = min.to(Second);
+
+    try std.testing.expectEqual(60, min.value());
+    try std.testing.expectEqual(3600, sec.value());
+}
+
+test "Format Scalar" {
+    const MeterPerSecondSq = Scalar(f32, .{ .L = 1, .T = -2 }, .{ .T = .n });
+    const Meter = Scalar(f32, .{ .L = 1 }, .{});
+
+    const m = Meter.splat(1.23456);
+    const accel = MeterPerSecondSq.splat(9.81);
+
+    var buf: [64]u8 = undefined;
+    var res = try std.fmt.bufPrint(&buf, "{d:.2}", .{m});
+    try std.testing.expectEqualStrings("1.23m", res);
+
+    res = try std.fmt.bufPrint(&buf, "{d}", .{accel});
+    try std.testing.expectEqualStrings("9.81m.ns⁻²", res);
+}
+
+test "Abs" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const m1 = Meter.splat(-50);
+    const m2 = m1.abs();
+
+    try std.testing.expectEqual(50, m2.value());
+
+    const m_float = Scalar(f32, .{ .L = 1 }, .{});
+    const m3 = m_float.splat(-42.5);
+    try std.testing.expectEqual(42.5, m3.abs().value());
+}
+
+test "Pow" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const d = Meter.splat(4);
+
+    const area = d.pow(2);
+    try std.testing.expectEqual(16, area.value());
+
+    const volume = d.pow(3);
+    try std.testing.expectEqual(64, volume.value());
+}
+
+test "mul comptime_int" {
+    const Meter = Scalar(i128, .{ .L = 1 }, .{});
+    const d = Meter.splat(7);
+
+    const scaled = d.mul(3);
+    try std.testing.expectEqual(21, scaled.value());
+}
+
+test "add/sub bare number on dimensionless scalar" {
+    const DimLess = Scalar(i128, .{}, .{});
+    const a = DimLess.splat(10);
+
+    const b = a.add(5);
+    try std.testing.expectEqual(15, b.value());
+
+    const c = a.sub(3);
+    try std.testing.expectEqual(7, c.value());
+}
+
+test "Imperial length scales" {
+    const Foot = Scalar(f64, .{ .L = 1 }, .{ .L = .ft });
+    const Meter = Scalar(f64, .{ .L = 1 }, .{});
+    const Inch = Scalar(f64, .{ .L = 1 }, .{ .L = .inch });
+
+    const one_ft = Foot.splat(1.0);
+    try std.testing.expectApproxEqAbs(0.3048, one_ft.to(Meter).value(), 1e-9);
+
+    const twelve_in = Inch.splat(12.0);
+    try std.testing.expectApproxEqAbs(1.0, twelve_in.to(Foot).value(), 1e-9);
+}
+
+test "Imperial mass scales" {
+    const Pound = Scalar(f64, .{ .M = 1 }, .{ .M = .lb });
+    const Ounce = Scalar(f64, .{ .M = 1 }, .{ .M = .oz });
+
+    const two_lb = Pound.splat(2.0);
+    const eight_oz = Ounce.splat(8.0);
+    const total = two_lb.add(eight_oz).to(Pound);
+    try std.testing.expectApproxEqAbs(2.5, total.value(), 1e-6);
+}
+
+test "comparisons with comptime_int on dimensionless scalar" {
+    const DimLess = Scalar(i128, .{}, .{});
+    const x = DimLess.splat(42);
+
+    try std.testing.expect(x.eq(42));
+    try std.testing.expect(x.gt(10));
 }

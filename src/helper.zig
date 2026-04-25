@@ -62,14 +62,13 @@ pub fn finerScales(comptime T1: type, comptime T2: type) Scales {
 // RHS normalisation helpers
 // ---------------------------------------------------------------------------
 
-const Scalar = @import("Scalar.zig").Scalar;
+const Quantity = @import("Quantity.zig").Quantity;
 
 /// Returns true if `T` is a `Scalar_` type (has `dims`, `scales`, and `value`).
 pub fn isScalarType(comptime T: type) bool {
     return @typeInfo(T) == .@"struct" and
-        @hasDecl(T, "dims") and
-        @hasDecl(T, "scales") and
-        @hasField(T, "value");
+        @hasDecl(T, "ISQUANTITY") and
+        @field(T, "ISQUANTITY");
 }
 
 /// Resolve the Scalar type that `rhs` will be treated as.
@@ -80,19 +79,19 @@ pub fn isScalarType(comptime T: type) bool {
 ///   - `BaseT` (the scalar's value type) → dimensionless `Scalar_(BaseT, {}, {})`
 ///
 /// Everything else is a compile error, including other int/float types.
-pub fn rhsScalarType(comptime BaseT: type, comptime RhsT: type) type {
+pub fn rhsQuantityType(comptime ValueType: type, N: usize, comptime RhsT: type) type {
     if (comptime isScalarType(RhsT)) return RhsT;
-    if (comptime RhsT == comptime_int or RhsT == comptime_float or RhsT == BaseT)
-        return Scalar(BaseT, .{}, .{});
+    if (comptime RhsT == comptime_int or RhsT == comptime_float or RhsT == ValueType)
+        return Quantity(ValueType, N, .{}, .{});
     @compileError(
-        "rhs must be a Scalar, " ++ @typeName(BaseT) ++
+        "rhs must be a Scalar, " ++ @typeName(ValueType) ++
             ", comptime_int, or comptime_float; got " ++ @typeName(RhsT),
     );
 }
 
 /// Convert `rhs` to its normalised Scalar form (see `rhsScalarType`).
-pub inline fn toRhsScalar(comptime BaseT: type, rhs: anytype) rhsScalarType(BaseT, @TypeOf(rhs)) {
+pub inline fn toRhsQuantity(comptime BaseT: type, N: usize, rhs: anytype) rhsQuantityType(BaseT, N, @TypeOf(rhs)) {
     if (comptime isScalarType(@TypeOf(rhs))) return rhs;
-    const DimLess = Scalar(BaseT, .{}, .{});
-    return DimLess{ .value = @as(BaseT, rhs) };
+    const DimLess = Quantity(BaseT, N, .{}, .{});
+    return DimLess{ .data = @splat(@as(BaseT, rhs)) };
 }

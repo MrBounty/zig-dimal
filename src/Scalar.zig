@@ -7,8 +7,6 @@ const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
-// ---------------------------------------------------------------------------
-
 /// A dimensioned scalar value. `T` is the numeric type, `d` the dimension exponents, `s` the SI scales.
 /// All dimension and unit tracking is resolved at comptime — zero runtime overhead.
 pub fn Scalar(comptime T: type, comptime d_opt: Dimensions.ArgOpts, comptime s_opt: Scales.ArgOpts) type {

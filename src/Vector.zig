@@ -74,6 +74,7 @@ pub fn Vector(comptime len: usize, comptime Q: type) type {
             }
             return res;
         }
+
         /// Element-wise subtraction. Dimensions must match; scales resolve to the finer of the two.
         pub inline fn sub(self: Self, rhs: anytype) Vector(len, Scalar(
             T,

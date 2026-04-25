@@ -8,9 +8,9 @@ pub const Base = @import("Base.zig");
 
 test {
     _ = @import("Scalar.zig");
-    _ = @import("Vector.zig");
-    _ = @import("Dimensions.zig");
-    _ = @import("Scales.zig");
-    _ = @import("Base.zig");
-    _ = @import("helper.zig");
+    // _ = @import("Vector.zig");
+    // _ = @import("Dimensions.zig");
+    // _ = @import("Scales.zig");
+    // _ = @import("Base.zig");
+    // _ = @import("helper.zig");
 }

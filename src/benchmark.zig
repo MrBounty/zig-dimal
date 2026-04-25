@@ -11,14 +11,25 @@ pub fn main(init: std.process.Init) !void {
 
     io = init.io;
 
-    try bench_Scalar(&stdout_writer.interface);
+    try vectorSIMDvsNative(f64, &stdout_writer.interface);
     try stdout_writer.flush();
-    try bench_vsNative(&stdout_writer.interface);
+    try vectorSIMDvsNative(f32, &stdout_writer.interface);
     try stdout_writer.flush();
-    try bench_crossTypeVsNative(&stdout_writer.interface);
+    try vectorSIMDvsNative(i32, &stdout_writer.interface);
     try stdout_writer.flush();
-    try bench_Vector(&stdout_writer.interface);
+    try vectorSIMDvsNative(i64, &stdout_writer.interface);
     try stdout_writer.flush();
+    try vectorSIMDvsNative(i128, &stdout_writer.interface);
+    try stdout_writer.flush();
+
+    // try bench_Scalar(&stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try bench_vsNative(&stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try bench_crossTypeVsNative(&stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try bench_Vector(&stdout_writer.interface);
+    // try stdout_writer.flush();
 }
 
 fn getTime() Io.Timestamp {
@@ -477,4 +488,62 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
         }
     }
     try writer.print("└──────────────────┴──────┴─────────┴─────────┴─────────┘\n", .{});
+}
+
+fn vectorSIMDvsNative(comptime T: type, writer: *std.Io.Writer) !void {
+    const iterations: u64 = 100_000;
+    const lens = [_]u32{ 1, 2, 3, 4, 5, 10, 100, 1_000, 10_000 };
+
+    try writer.print("\nSIMD Speedup Analysis: {s}\n", .{@typeName(T)});
+    try writer.print("┌────────────┬────────────┬────────────┬────────────┐\n", .{});
+    try writer.print("│ Vector Len │ Scalar (ns)│ Vector (ns)│ Speedup    │\n", .{});
+    try writer.print("├────────────┼────────────┼────────────┼────────────┤\n", .{});
+
+    inline for (lens) |vector_len| {
+        // --- Scalar Test ---
+        var scalar_val: T = 10;
+        const start_scalar = getTime();
+
+        var i: u64 = 0;
+        while (i < iterations * vector_len) : (i += 1) {
+            if (comptime @typeInfo(T) == .int)
+                scalar_val = scalar_val +% 1
+            else
+                scalar_val = scalar_val + 1;
+        }
+        const scalar_time = start_scalar.durationTo(getTime()).toNanoseconds();
+
+        // --- Vector Test ---
+        var vector_val: @Vector(vector_len, T) = @splat(20);
+        const start_vector = getTime();
+
+        i = 0;
+        const increment: @Vector(vector_len, T) = @splat(1);
+        while (i < iterations) : (i += 1) {
+            if (comptime @typeInfo(T) == .int)
+                vector_val = vector_val +% increment
+            else
+                vector_val = vector_val + increment;
+        }
+        const vector_time = start_vector.durationTo(getTime()).toNanoseconds();
+
+        // --- Results ---
+        const s_float = @as(f64, @floatFromInt(scalar_time));
+        const v_float = @as(f64, @floatFromInt(vector_time));
+
+        // Speedup = ScalarTime / VectorTime.
+        // > 1.0 means SIMD is faster.
+        const speedup = if (vector_time > 0) s_float / v_float else 0;
+
+        try writer.print("│ {d:<10} │ {d:>10} │ {d:>10} │ {d:>9.2}x │\n", .{
+            vector_len,
+            scalar_time,
+            vector_time,
+            speedup,
+        });
+
+        std.mem.doNotOptimizeAway(scalar_val);
+        std.mem.doNotOptimizeAway(vector_val);
+    }
+    try writer.print("└────────────┴────────────┴────────────┴────────────┘\n", .{});
 }

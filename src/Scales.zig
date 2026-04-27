@@ -65,7 +65,7 @@ pub const UnitScale = enum(isize) {
     }
 
     pub inline fn getFactor(self: @This()) comptime_float {
-        return comptime switch (self) {
+        comptime return switch (self) {
             // Standard SI Exponents
             inline .P, .T, .G, .M, .k, .h, .da, .none, .d, .c, .m, .u, .n, .p, .f => std.math.pow(f64, 10.0, @floatFromInt(@intFromEnum(self))),
 
@@ -83,7 +83,7 @@ pub const UnitScale = enum(isize) {
             inline .lb => 453.59237,
             inline .st => 6350.29318,
 
-            inline else => @floatFromInt(@intFromEnum(self)),
+            else => @floatFromInt(@intFromEnum(self)),
         };
     }
 };
@@ -103,11 +103,11 @@ pub fn init(comptime init_val: ArgOpts) Self {
         else
             s.data.set(@field(Dimension, f.name), @field(init_val, f.name));
     }
-    return s;
+    return comptime s;
 }
 
 pub fn initFill(comptime val: UnitScale) Self {
-    return comptime .{ .data = std.EnumArray(Dimension, UnitScale).initFill(val) };
+    comptime return .{ .data = std.EnumArray(Dimension, UnitScale).initFill(val) };
 }
 
 pub fn get(comptime self: Self, comptime key: Dimension) UnitScale {
@@ -115,7 +115,7 @@ pub fn get(comptime self: Self, comptime key: Dimension) UnitScale {
 }
 
 pub fn set(comptime self: *Self, comptime key: Dimension, comptime val: UnitScale) void {
-    comptime self.data.set(key, val);
+    self.data.set(key, val);
 }
 
 pub fn argsOpt(self: Self) ArgOpts {
@@ -144,5 +144,5 @@ pub inline fn getFactor(comptime s: Self, comptime d: Dimensions) comptime_float
                 factor /= base;
         }
     }
-    return comptime factor;
+    comptime return factor;
 }

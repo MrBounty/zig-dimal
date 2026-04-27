@@ -23,10 +23,10 @@ pub fn main(init: std.process.Init) !void {
 
     try bench_Scalar(&stdout_writer.interface);
     try stdout_writer.flush();
-    // try bench_vsNative(&stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try bench_crossTypeVsNative(&stdout_writer.interface);
-    // try stdout_writer.flush();
+    try bench_vsNative(&stdout_writer.interface);
+    try stdout_writer.flush();
+    try bench_crossTypeVsNative(&stdout_writer.interface);
+    try stdout_writer.flush();
     try bench_Vector(&stdout_writer.interface);
     try stdout_writer.flush();
 }

@@ -51,17 +51,17 @@ data: std.EnumArray(Dimension, comptime_int),
 /// Unspecified dimensions default to 0.
 pub fn init(comptime init_val: ArgOpts) Self {
     var s = Self{ .data = std.EnumArray(Dimension, comptime_int).initFill(0) };
-    inline for (std.meta.fields(@TypeOf(init_val))) |f|
+    for (std.meta.fields(@TypeOf(init_val))) |f|
         s.data.set(@field(Dimension, f.name), @field(init_val, f.name));
     return s;
 }
 
 pub fn initFill(comptime val: comptime_int) Self {
-    return .{ .data = std.EnumArray(Dimension, comptime_int).initFill(val) };
+    comptime return .{ .data = std.EnumArray(Dimension, comptime_int).initFill(val) };
 }
 
 pub fn get(comptime self: Self, comptime key: Dimension) comptime_int {
-    return self.data.get(key);
+    comptime return self.data.get(key);
 }
 
 pub fn set(comptime self: *Self, comptime key: Dimension, comptime val: i8) void {
@@ -70,40 +70,40 @@ pub fn set(comptime self: *Self, comptime key: Dimension, comptime val: i8) void
 
 pub fn argsOpt(self: Self) ArgOpts {
     var args: ArgOpts = undefined;
-    inline for (std.enums.values(Dimension)) |d|
+    for (std.enums.values(Dimension)) |d|
         @field(args, @tagName(d)) = self.get(d);
-    return args;
+    comptime return args;
 }
 
 /// Add exponents component-wise. Used internally by `mul`.
 pub fn add(comptime a: Self, comptime b: Self) Self {
     var result = Self.initFill(0);
-    inline for (std.enums.values(Dimension)) |d|
+    for (std.enums.values(Dimension)) |d|
         result.set(d, a.get(d) + b.get(d));
-    return result;
+    comptime return result;
 }
 
 /// Subtract exponents component-wise. Used internally by `div`.
 pub fn sub(comptime a: Self, comptime b: Self) Self {
     var result = Self.initFill(0);
-    inline for (std.enums.values(Dimension)) |d|
+    for (std.enums.values(Dimension)) |d|
         result.set(d, a.get(d) - b.get(d));
-    return result;
+    comptime return result;
 }
 
 /// Multiply exponents by a scalar integer. Used internally by `pow` in Scalar.
 pub fn scale(comptime a: Self, comptime exp: comptime_int) Self {
     var result = Self.initFill(0);
-    inline for (std.enums.values(Dimension)) |d|
+    for (std.enums.values(Dimension)) |d|
         result.set(d, a.get(d) * exp);
-    return result;
+    comptime return result;
 }
 
 pub fn div(comptime a: Self, comptime exp: comptime_int) Self {
     var result = Self.initFill(0);
     inline for (std.enums.values(Dimension)) |d|
         result.set(d, a.get(d) / exp);
-    return result;
+    comptime return result;
 }
 
 /// Returns true if every dimension exponent is equal. Used to enforce type compatibility in `add`, `sub`, `to`.

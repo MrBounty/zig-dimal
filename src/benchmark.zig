@@ -1,7 +1,6 @@
 const std = @import("std");
 const Io = std.Io;
-const Scalar = @import("Quantity.zig").Scalar;
-const Vector = @import("Quantity.zig").Vector;
+const Tensor = @import("Tensor.zig").Tensor;
 
 var io: Io = undefined;
 pub fn main(init: std.process.Init) !void {
@@ -11,23 +10,23 @@ pub fn main(init: std.process.Init) !void {
 
     io = init.io;
 
-    // try vectorSIMDvsNative(f64, &stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try vectorSIMDvsNative(f32, &stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try vectorSIMDvsNative(i32, &stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try vectorSIMDvsNative(i64, &stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try vectorSIMDvsNative(i128, &stdout_writer.interface);
-    // try stdout_writer.flush();
+    try vectorSIMDvsNative(f64, &stdout_writer.interface);
+    try stdout_writer.flush();
+    try vectorSIMDvsNative(f32, &stdout_writer.interface);
+    try stdout_writer.flush();
+    try vectorSIMDvsNative(i32, &stdout_writer.interface);
+    try stdout_writer.flush();
+    try vectorSIMDvsNative(i64, &stdout_writer.interface);
+    try stdout_writer.flush();
+    try vectorSIMDvsNative(i128, &stdout_writer.interface);
+    try stdout_writer.flush();
 
     try bench_Scalar(&stdout_writer.interface);
     try stdout_writer.flush();
-    try bench_vsNative(&stdout_writer.interface);
-    try stdout_writer.flush();
-    try bench_crossTypeVsNative(&stdout_writer.interface);
-    try stdout_writer.flush();
+    // try bench_vsNative(&stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try bench_crossTypeVsNative(&stdout_writer.interface);
+    // try stdout_writer.flush();
     try bench_Vector(&stdout_writer.interface);
     try stdout_writer.flush();
 }
@@ -97,9 +96,9 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
 
     comptime var tidx: usize = 0;
     inline for (Types, TNames) |T, tname| {
-        const M = Scalar(T, .{ .L = 1 }, .{});
-        const KM = Scalar(T, .{ .L = 1 }, .{ .L = .k });
-        const S = Scalar(T, .{ .T = 1 }, .{});
+        const M = Tensor(T, .{ .L = 1 }, .{}, &.{1});
+        const KM = Tensor(T, .{ .L = 1 }, .{ .L = .k }, &.{1});
+        const S = Tensor(T, .{ .T = 1 }, .{}, &.{1});
 
         inline for (Ops, 0..) |op_name, oidx| {
             var samples: [SAMPLES]f64 = undefined;
@@ -199,8 +198,8 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
             var native_total_ns: f64 = 0;
             var quantity_total_ns: f64 = 0;
 
-            const M = Scalar(T, .{ .L = 1 }, .{});
-            const S = Scalar(T, .{ .T = 1 }, .{});
+            const M = Tensor(T, .{ .L = 1 }, .{}, &.{1});
+            const S = Tensor(T, .{ .T = 1 }, .{}, &.{1});
 
             std.mem.doNotOptimizeAway({
                 for (0..SAMPLES) |_| {
@@ -321,9 +320,9 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
                 var native_total_ns: f64 = 0;
                 var quantity_total_ns: f64 = 0;
 
-                const M1 = Scalar(T1, .{ .L = 1 }, .{});
-                const M2 = Scalar(T2, .{ .L = 1 }, .{});
-                const S2 = Scalar(T2, .{ .T = 1 }, .{});
+                const M1 = Tensor(T1, .{ .L = 1 }, .{}, &.{1});
+                const M2 = Tensor(T2, .{ .L = 1 }, .{}, &.{1});
+                const S2 = Tensor(T2, .{ .T = 1 }, .{}, &.{1});
 
                 std.mem.doNotOptimizeAway({
                     for (0..SAMPLES) |_| {
@@ -429,9 +428,8 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
             try writer.print("│ {s:<16} │ {s:<4} │", .{ op_name, tname });
 
             inline for (Lengths) |len| {
-                const Q_base = Scalar(T, .{ .L = 1 }, .{});
-                const Q_time = Scalar(T, .{ .T = 1 }, .{});
-                const V = Vector(len, Q_base);
+                const Q_time = Tensor(T, .{ .T = 1 }, .{}, &.{1});
+                const V = Tensor(T, .{ .L = 1 }, .{}, &.{len});
 
                 // cross product is only defined for len == 3
                 const is_cross = comptime std.mem.eql(u8, op_name, "cross");
@@ -455,10 +453,10 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
                                 _ = v1.div(V.splat(getVal(T, i +% 2, 63)));
                             } else if (comptime std.mem.eql(u8, op_name, "mulScalar")) {
                                 const s_val = Q_time.splat(getVal(T, i +% 2, 63));
-                                _ = v1.mulScalar(s_val);
+                                _ = v1.mul(s_val);
                             } else if (comptime std.mem.eql(u8, op_name, "dot")) {
                                 const v2 = V.splat(getVal(T, i +% 5, 63));
-                                _ = v1.dot(v2);
+                                _ = v1.contract(v2, 0, 0);
                             } else if (comptime std.mem.eql(u8, op_name, "cross")) {
                                 // len == 3 guaranteed by the guard above
                                 const v2 = V.splat(getVal(T, i +% 5, 63));

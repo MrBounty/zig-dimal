@@ -17,9 +17,8 @@ pub fn shapeTotal(comptime shape: []const usize) usize {
 /// Check if two shapes are strictly identical.
 pub fn shapeEql(comptime a: []const usize, comptime b: []const usize) bool {
     if (a.len != b.len) return false;
-    for (a, 0..) |v, i| {
+    for (a, 0..) |v, i|
         if (v != b[i]) return false;
-    }
     return true;
 }
 
@@ -432,16 +431,30 @@ pub fn Tensor(
         ) Tensor(Dest.ValueType, Dest.dims.argsOpt(), Dest.scales.argsOpt(), shape_) {
             const ActualDest = Tensor(Dest.ValueType, Dest.dims.argsOpt(), Dest.scales.argsOpt(), shape_);
 
+            if (comptime Self == ActualDest) return self;
+
+            const ratio = comptime (scales.getFactor(dims) / ActualDest.scales.getFactor(ActualDest.dims));
+            const DestT = ActualDest.ValueType;
+            const DestVec = @Vector(total, DestT);
+
+            // If ratio is 1, just handle type conversion
+            if (comptime ratio == 1.0) {
+                if (comptime T == DestT) return .{ .data = self.data };
+                return .{
+                    .data = switch (comptime @typeInfo(DestT)) {
+                        .float => @floatFromInt(self.data), // or @floatCast
+                        .int => @intFromFloat(self.data), // or @intCast
+                        else => unreachable,
+                    },
+                };
+            }
+
             if (comptime !dims.eql(ActualDest.dims))
                 @compileError("Dimension mismatch in to: " ++ dims.str() ++ " vs " ++ ActualDest.dims.str());
             if (comptime Dest.total != 1 and !shapeEql(shape_, Dest.shape))
                 @compileError("Shape mismatch in to: destination type must have the identical shape, or be a scalar.");
 
             if (comptime Self == ActualDest) return self;
-
-            const DestT = ActualDest.ValueType;
-            const ratio = comptime (scales.getFactor(dims) / ActualDest.scales.getFactor(ActualDest.dims));
-            const DestVec = @Vector(total, DestT);
 
             if (comptime T == DestT) {
                 if (comptime @typeInfo(T) == .float)
@@ -485,7 +498,7 @@ pub fn Tensor(
         const CmpResult = if (total == 1) bool else [total]bool;
 
         inline fn cmpResult(v: @Vector(total, bool)) CmpResult {
-            return if (comptime total == 1) v[0] else @as([total]bool, v);
+            return if (comptime total == 1) @reduce(.And, v) else @as([total]bool, v);
         }
 
         /// Resolve both sides to the finer scale, broadcasting shape {1} RHS if needed.
@@ -632,6 +645,40 @@ pub fn Tensor(
                 result.data[res_flat] = acc;
             }
             return result;
+        }
+
+        /// 3D Cross Product. Only defined for Rank-1 tensors of length 3.
+        /// Result dimensions are the sum of input dimensions.
+        pub inline fn cross(self: Self, other: anytype) Tensor(
+            T,
+            dims.add(RhsT(@TypeOf(other)).dims).argsOpt(),
+            finerScales(Self, RhsT(@TypeOf(other))).argsOpt(),
+            &.{3},
+        ) {
+            const rhs_q = rhs(other);
+            const RhsType = @TypeOf(rhs_q);
+
+            if (comptime rank != 1 or shape[0] != 3 or RhsType.rank != 1 or RhsType.shape[0] != 3) {
+                @compileError("cross product is only defined for 3D vectors (rank-1, length 3)");
+            }
+
+            // Bring both to the same scale (e.g., mm vs m)
+            const p = self.resolveScalePair(rhs_q);
+            const l = p.l;
+            const r = p.r;
+
+            var res: [3]T = undefined;
+            if (comptime isInt(T)) {
+                res[0] = (l[1] *| r[2]) -| (l[2] *| r[1]);
+                res[1] = (l[2] *| r[0]) -| (l[0] *| r[2]);
+                res[2] = (l[0] *| r[1]) -| (l[1] *| r[0]);
+            } else {
+                res[0] = (l[1] * r[2]) - (l[2] * r[1]);
+                res[1] = (l[2] * r[0]) - (l[0] * r[2]);
+                res[2] = (l[0] * r[1]) - (l[1] * r[0]);
+            }
+
+            return .{ .data = res };
         }
 
         /// Sum of squared elements.  Cheaper than length(); use for ordering.

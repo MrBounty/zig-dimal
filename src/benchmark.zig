@@ -29,6 +29,8 @@ pub fn main(init: std.process.Init) !void {
     try stdout_writer.flush();
     try bench_Vector(&stdout_writer.interface);
     try stdout_writer.flush();
+    try bench_HighDimTensor(&stdout_writer.interface);
+    try stdout_writer.flush();
 }
 
 fn getTime() Io.Timestamp {
@@ -486,6 +488,102 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
         }
     }
     try writer.print("└──────────────────┴──────┴─────────┴─────────┴─────────┴─────────┴─────────┘\n", .{});
+}
+
+fn bench_HighDimTensor(writer: *std.Io.Writer) !void {
+    const ITERS: usize = 5_000;
+    const SAMPLES: usize = 5;
+
+    const getVal = struct {
+        fn f(comptime TT: type, i: usize, comptime mask: u7) TT {
+            const v: u8 = @as(u8, @truncate(i & @as(usize, mask))) + 1;
+            return if (comptime @typeInfo(TT) == .float) @floatFromInt(v) else @intCast(v);
+        }
+    }.f;
+
+    const computeStats = struct {
+        fn f(samples: []f64, iters: usize) f64 {
+            std.mem.sort(f64, samples, {}, std.sort.asc(f64));
+            const mid = samples.len / 2;
+            const median_ns = if (samples.len % 2 == 0)
+                (samples[mid - 1] + samples[mid]) / 2.0
+            else
+                samples[mid];
+            return median_ns / @as(f64, @floatFromInt(iters));
+        }
+    }.f;
+
+    try writer.print(
+        \\
+        \\ High Dimension Tensor benchmark — {d} iterations, {d} samples/cell
+        \\ (Results in ns/op)
+        \\
+        \\┌─────────────────┬──────┬──────────────┬──────────────┬──────────────┬──────────────┐
+        \\│ Operation       │ Type │        2x2x2 │        3x3x3 │        4x4x4 │  10x10x10x10 │
+        \\├─────────────────┼──────┼──────────────┼──────────────┼──────────────┼──────────────┤
+        \\
+    , .{ ITERS, SAMPLES });
+
+    const Types = .{ i32, i64, f32, f64 };
+    const TNames = .{ "i32", "i64", "f32", "f64" };
+
+    // Testing multiple structural bounds
+    const Shapes = .{
+        &.{ 2, 2, 2 },
+        &.{ 3, 3, 3 },
+        &.{ 4, 4, 4 },
+        &.{ 10, 10, 10, 10 },
+    };
+
+    const Ops = .{ "add", "sub", "mulElem", "mulScalar", "abs" };
+
+    inline for (Ops, 0..) |op_name, o_idx| {
+        inline for (Types, TNames) |T, tname| {
+            try writer.print("│ {s:<15} │ {s:<4} │", .{ op_name, tname });
+
+            inline for (Shapes) |shape| {
+                const V = Tensor(T, .{ .L = 1 }, .{}, shape);
+                const Q = Tensor(T, .{ .T = 1 }, .{}, &.{1}); // For scalar broadcasting operations
+
+                var samples: [SAMPLES]f64 = undefined;
+
+                for (0..SAMPLES) |s_idx| {
+                    const t_start = getTime();
+
+                    for (0..ITERS) |i| {
+                        std.mem.doNotOptimizeAway({
+                            const t1 = V.splat(getVal(T, i, 63));
+
+                            _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                                t1.add(V.splat(getVal(T, i +% 7, 63)))
+                            else if (comptime std.mem.eql(u8, op_name, "sub"))
+                                t1.sub(V.splat(getVal(T, i +% 3, 63)))
+                            else if (comptime std.mem.eql(u8, op_name, "mulElem"))
+                                t1.mul(V.splat(getVal(T, i +% 5, 63)))
+                            else if (comptime std.mem.eql(u8, op_name, "mulScalar"))
+                                t1.mul(Q.splat(getVal(T, i +% 2, 63)))
+                            else if (comptime std.mem.eql(u8, op_name, "abs"))
+                                t1.abs()
+                            else
+                                unreachable;
+                        });
+                    }
+
+                    const t_end = getTime();
+                    samples[s_idx] = @as(f64, @floatFromInt(t_start.durationTo(t_end).toNanoseconds()));
+                }
+
+                const median_ns_per_op = computeStats(&samples, ITERS);
+                try writer.print(" {d:>12.1} │", .{median_ns_per_op});
+            }
+            try writer.print("\n", .{});
+        }
+
+        if (o_idx < Ops.len - 1) {
+            try writer.print("├─────────────────┼──────┼──────────────┼──────────────┼──────────────┼──────────────┤\n", .{});
+        }
+    }
+    try writer.print("└─────────────────┴──────┴──────────────┴──────────────┴──────────────┴──────────────┘\n", .{});
 }
 
 fn vectorSIMDvsNative(comptime T: type, writer: *std.Io.Writer) !void {

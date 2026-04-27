@@ -60,7 +60,7 @@ pub const Constants = struct {
     /// Newtonian constant of gravitation (G) [m³⋅kg⁻¹⋅s⁻²]
     pub const Gravitational = PhysicalConstant(.{ .M = -1, .L = 3, .T = -2 }, 6.67430e-11, .{ .M = .k });
 
-    /// Stefan–Boltzmann constant (σ) [W⋅m⁻²⋅K⁻⁴ = kg⋅s⁻³⋅K⁻⁴]
+    /// Stefan-Boltzmann constant () [W⋅m⁻²⋅K⁻⁴ = kg⋅s⁻³⋅K⁻⁴]
     pub const StefanBoltzmann = PhysicalConstant(.{ .M = 1, .T = -3, .Tp = -4 }, 5.670374419e-8, .{ .M = .k });
 
     /// Elementary charge (e) [C = A⋅s]
@@ -81,7 +81,7 @@ pub const Constants = struct {
     /// Neutron mass (m_n) [kg]
     pub const NeutronMass = PhysicalConstant(.{ .M = 1 }, 1.67492750056e-27, .{ .M = .k });
 
-    /// Fine-structure constant (α) [Dimensionless]
+    /// Fine-structure constant () [Dimensionless]
     pub const FineStructure = PhysicalConstant(.{}, 0.0072973525643, .{});
 
     /// Avogadro constant (N_A) [mol⁻¹]

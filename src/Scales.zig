@@ -118,6 +118,12 @@ pub fn set(self: *Self, key: Dimension, val: UnitScale) void {
     self.data.set(key, val);
 }
 
+pub fn eql(self: Self, other: Self) bool {
+    for (self.data.values, other.data.values) |l, r|
+        if (l != r) return false;
+    return true;
+}
+
 pub fn argsOpt(self: Self) ArgOpts {
     var args: ArgOpts = undefined;
     for (std.enums.values(Dimension)) |d|

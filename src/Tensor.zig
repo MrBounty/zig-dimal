@@ -203,7 +203,7 @@ pub fn Tensor(
             if (s == 0) @compileError("Tensor shape dimensions must be strictly >= 1.");
         }
     }
-    @setEvalBranchQuota(10_000_000);
+    @setEvalBranchQuota(100_000);
 
     const _total: usize = comptime shapeTotal(shape_);
     const _strides = comptime shapeStrides(shape_);
@@ -271,20 +271,20 @@ pub fn Tensor(
             finerScales(Self, RhsT(@TypeOf(r))).argsOpt(),
             shape_,
         ) {
-            const rhs_q = rhs(r);
+            const rhs_t = rhs(r);
             const RhsType = @TypeOf(r);
             if (comptime !dims.eql(RhsType.dims))
                 @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
             if (comptime RhsType.total != 1 and !shapeEql(shape_, RhsType.shape))
                 @compileError("Shape mismatch in add: element-wise operations require identical shapes, or a scalar RHS.");
-            // if (comptime total == 1 and RhsType.scales.eql(scales))
-            //     return .{ .data = if (comptime isInt(T)) self.data +| r.data else self.data + r.data };
+            if (comptime total == 1 and scales.eql(RhsType.scales)) // Here rhs_t has to be {1} too
+                return .{ .data = if (comptime isInt(T)) self.data +| rhs_t.data else self.data + rhs_t.data };
 
             const TargetType = Tensor(T, dims.argsOpt(), finerScales(Self, RhsType).argsOpt(), shape_);
             const l: Vec = if (comptime Self == TargetType) self.data else self.to(TargetType).data;
             const rr: Vec = blk: {
                 const RhsNorm = Tensor(T, RhsType.dims.argsOpt(), finerScales(Self, RhsType).argsOpt(), RhsType.shape);
-                const rn = if (comptime RhsType == RhsNorm) rhs_q else rhs_q.to(RhsNorm);
+                const rn = if (comptime RhsType == RhsNorm) rhs_t else rhs_t.to(RhsNorm);
                 break :blk broadcastToVec(RhsNorm, rn);
             };
             return .{ .data = if (comptime isInt(T)) l +| rr else l + rr };
@@ -298,18 +298,20 @@ pub fn Tensor(
             finerScales(Self, RhsT(@TypeOf(r))).argsOpt(),
             shape_,
         ) {
-            const rhs_q = rhs(r);
-            const RhsType = @TypeOf(rhs_q);
+            const rhs_t = rhs(r);
+            const RhsType = @TypeOf(rhs_t);
             if (comptime !dims.eql(RhsType.dims))
                 @compileError("Dimension mismatch in sub: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
             if (comptime RhsType.total != 1 and !shapeEql(shape_, RhsType.shape))
                 @compileError("Shape mismatch in sub: element-wise operations require identical shapes, or a scalar RHS.");
+            if (comptime total == 1 and scales.eql(RhsType.scales)) // Here rhs_t has to be {1} too
+                return .{ .data = if (comptime isInt(T)) self.data -| rhs_t.data else self.data - rhs_t.data };
 
             const TargetType = Tensor(T, dims.argsOpt(), finerScales(Self, RhsType).argsOpt(), shape_);
             const l: Vec = if (comptime Self == TargetType) self.data else self.to(TargetType).data;
             const rr: Vec = blk: {
                 const RhsNorm = Tensor(T, RhsType.dims.argsOpt(), finerScales(Self, RhsType).argsOpt(), RhsType.shape);
-                const rn = if (comptime RhsType == RhsNorm) rhs_q else rhs_q.to(RhsNorm);
+                const rn = if (comptime RhsType == RhsNorm) rhs_t else rhs_t.to(RhsNorm);
                 break :blk broadcastToVec(RhsNorm, rn);
             };
             return .{ .data = if (comptime isInt(T)) l -| rr else l - rr };

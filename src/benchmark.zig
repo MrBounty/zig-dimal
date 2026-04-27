@@ -1,7 +1,6 @@
 const std = @import("std");
 const Io = std.Io;
-const Scalar = @import("Quantity.zig").Scalar;
-const Vector = @import("Quantity.zig").Vector;
+const Tensor = @import("Tensor.zig").Tensor;
 
 var io: Io = undefined;
 pub fn main(init: std.process.Init) !void {
@@ -21,14 +20,16 @@ pub fn main(init: std.process.Init) !void {
     // try stdout_writer.flush();
     // try vectorSIMDvsNative(i128, &stdout_writer.interface);
     // try stdout_writer.flush();
-
-    try bench_Scalar(&stdout_writer.interface);
-    try stdout_writer.flush();
+    //
+    // try bench_Scalar(&stdout_writer.interface);
+    // try stdout_writer.flush();
     try bench_vsNative(&stdout_writer.interface);
     try stdout_writer.flush();
-    try bench_crossTypeVsNative(&stdout_writer.interface);
+    // try bench_crossTypeVsNative(&stdout_writer.interface);
     try stdout_writer.flush();
     try bench_Vector(&stdout_writer.interface);
+    try stdout_writer.flush();
+    try bench_HighDimTensor(&stdout_writer.interface);
     try stdout_writer.flush();
 }
 
@@ -97,9 +98,9 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
 
     comptime var tidx: usize = 0;
     inline for (Types, TNames) |T, tname| {
-        const M = Scalar(T, .{ .L = 1 }, .{});
-        const KM = Scalar(T, .{ .L = 1 }, .{ .L = .k });
-        const S = Scalar(T, .{ .T = 1 }, .{});
+        const M = Tensor(T, .{ .L = 1 }, .{}, &.{1});
+        const KM = Tensor(T, .{ .L = 1 }, .{ .L = .k }, &.{1});
+        const S = Tensor(T, .{ .T = 1 }, .{}, &.{1});
 
         inline for (Ops, 0..) |op_name, oidx| {
             var samples: [SAMPLES]f64 = undefined;
@@ -170,7 +171,7 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
 
 fn bench_vsNative(writer: *std.Io.Writer) !void {
     const ITERS: usize = 100_000;
-    const SAMPLES: usize = 5;
+    const SAMPLES: usize = 100;
 
     const getValT = struct {
         fn f(comptime TT: type, i: usize) TT {
@@ -179,8 +180,8 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
         }
     }.f;
 
-    const Types = .{ i32, i64, i128, f32, f64 };
-    const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
+    const Types = .{ f64, i64, i128, f32, f64 };
+    const TNames = .{ "f64", "i64", "i128", "f32", "f64" };
     // Expanded Ops to match bench_Scalar
     const Ops = .{ "add", "sub", "mul", "div", "abs", "eq", "gt" };
 
@@ -188,35 +189,34 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
         \\
         \\ Scalar vs Native Overhead Analysis
         \\
-        \\┌───────────┬──────┬───────────┬───────────┬───────────┐
-        \\│ Operation │ Type │ Native    │ Scalar    │ Slowdown  │
-        \\├───────────┼──────┼───────────┼───────────┼───────────┤
+        \\┌───────────┬──────┬───────────┬───────────┬───────────┬───────────────────────┐
+        \\│ Operation │ Type │ Native    │ @Vector   │ Tensor{{1}} │ Slowdown  Nat | Vec   │
+        \\├───────────┼──────┼───────────┼───────────┼───────────┼───────────────────────┤
         \\
     , .{});
 
     inline for (Ops, 0..) |op_name, j| {
         inline for (Types, 0..) |T, tidx| {
             var native_total_ns: f64 = 0;
-            var quantity_total_ns: f64 = 0;
+            var vector_total_ns: f64 = 0;
+            var tensor_total_ns: f64 = 0;
 
-            const M = Scalar(T, .{ .L = 1 }, .{});
-            const S = Scalar(T, .{ .T = 1 }, .{});
+            const M = Tensor(T, .{}, .{}, &.{1});
 
             std.mem.doNotOptimizeAway({
                 for (0..SAMPLES) |_| {
                     // --- 1. Benchmark Native ---
                     const n_start = getTime();
-                    for (0..ITERS) |i| {
-                        const a = getValT(T, i);
-                        const b = getValT(T, 2);
-
+                    const a = getValT(T, 10);
+                    const b = getValT(T, 2);
+                    for (0..ITERS) |_| {
                         // Native logic branch
                         _ = if (comptime std.mem.eql(u8, op_name, "add"))
-                            a + b
+                            if (comptime @typeInfo(T) == .int) a +| b else a + b
                         else if (comptime std.mem.eql(u8, op_name, "sub"))
-                            a - b
+                            if (comptime @typeInfo(T) == .int) a -| b else a - b
                         else if (comptime std.mem.eql(u8, op_name, "mul"))
-                            a * b
+                            if (comptime @typeInfo(T) == .int) a *| b else a * b
                         else if (comptime std.mem.eql(u8, op_name, "div"))
                             if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b
                         else if (comptime std.mem.eql(u8, op_name, "abs"))
@@ -231,12 +231,36 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
                     const n_end = getTime();
                     native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
 
+                    const v_start = getTime();
+                    const va = getValT(T, 10);
+                    const vb = getValT(T, 2);
+                    for (0..ITERS) |_| {
+                        // Native logic branch
+                        _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                            if (comptime @typeInfo(T) == .int) va +| vb else va + vb
+                        else if (comptime std.mem.eql(u8, op_name, "sub"))
+                            if (comptime @typeInfo(T) == .int) va -| vb else va - vb
+                        else if (comptime std.mem.eql(u8, op_name, "mul"))
+                            if (comptime @typeInfo(T) == .int) va *| vb else va * vb
+                        else if (comptime std.mem.eql(u8, op_name, "div"))
+                            if (comptime @typeInfo(T) == .int) @divTrunc(va, vb) else va / vb
+                        else if (comptime std.mem.eql(u8, op_name, "abs"))
+                            if (comptime @typeInfo(T) == .int) @abs(va) else @as(T, @abs(va))
+                        else if (comptime std.mem.eql(u8, op_name, "eq"))
+                            va == vb
+                        else if (comptime std.mem.eql(u8, op_name, "gt"))
+                            va > vb
+                        else
+                            unreachable;
+                    }
+                    const v_end = getTime();
+                    vector_total_ns += @as(f64, @floatFromInt(v_start.durationTo(v_end).toNanoseconds()));
+
                     // --- 2. Benchmark Scalar ---
                     const q_start = getTime();
-                    for (0..ITERS) |i| {
-                        const qa = M.splat(getValT(T, i));
-                        const qb = if (comptime std.mem.eql(u8, op_name, "div")) S.splat(getValT(T, 2)) else M.splat(getValT(T, 2));
-
+                    const qa = M.splat(getValT(T, 10));
+                    const qb = M.splat(getValT(T, 2));
+                    for (0..ITERS) |_| {
                         // Scalar logic branch
                         _ = if (comptime std.mem.eql(u8, op_name, "add"))
                             qa.add(qb)
@@ -256,22 +280,24 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
                             unreachable;
                     }
                     const q_end = getTime();
-                    quantity_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
+                    tensor_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
                 }
             });
 
             const avg_n = (native_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
-            const avg_q = (quantity_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
-            const slowdown = avg_q / avg_n;
+            const avg_v = (vector_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
+            const avg_t = (tensor_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
+            const slowdown_nt = avg_t / avg_n;
+            const slowdown_vt = avg_t / avg_v;
 
-            try writer.print("│ {s:<9} │ {s:<4} │ {d:>7.2}ns │ {d:>7.2}ns │ {d:>8.2}x │\n", .{
-                op_name, TNames[tidx], avg_n, avg_q, slowdown,
+            try writer.print("│ {s:<9} │ {s:<4} │ {d:>7.2}ns │ {d:>7.2}ns │ {d:>7.2}ns │ {d:>8.2}x   {d:>8.2}x │\n", .{
+                op_name, TNames[tidx], avg_n, avg_v, avg_t, slowdown_nt, slowdown_vt,
             });
         }
-        if (j != Ops.len - 1) try writer.print("├───────────┼──────┼───────────┼───────────┼───────────┤\n", .{});
+        if (j != Ops.len - 1) try writer.print("├───────────┼──────┼───────────┼───────────┼───────────┼───────────────────────┤\n", .{});
     }
 
-    try writer.print("└───────────┴──────┴───────────┴───────────┴───────────┘\n", .{});
+    try writer.print("└───────────┴──────┴───────────┴───────────┴───────────┴───────────────────────┘\n", .{});
 }
 
 fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
@@ -321,9 +347,9 @@ fn bench_crossTypeVsNative(writer: *std.Io.Writer) !void {
                 var native_total_ns: f64 = 0;
                 var quantity_total_ns: f64 = 0;
 
-                const M1 = Scalar(T1, .{ .L = 1 }, .{});
-                const M2 = Scalar(T2, .{ .L = 1 }, .{});
-                const S2 = Scalar(T2, .{ .T = 1 }, .{});
+                const M1 = Tensor(T1, .{ .L = 1 }, .{}, &.{1});
+                const M2 = Tensor(T2, .{ .L = 1 }, .{}, &.{1});
+                const S2 = Tensor(T2, .{ .T = 1 }, .{}, &.{1});
 
                 std.mem.doNotOptimizeAway({
                     for (0..SAMPLES) |_| {
@@ -429,9 +455,8 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
             try writer.print("│ {s:<16} │ {s:<4} │", .{ op_name, tname });
 
             inline for (Lengths) |len| {
-                const Q_base = Scalar(T, .{ .L = 1 }, .{});
-                const Q_time = Scalar(T, .{ .T = 1 }, .{});
-                const V = Vector(len, Q_base);
+                const Q_time = Tensor(T, .{ .T = 1 }, .{}, &.{1});
+                const V = Tensor(T, .{ .L = 1 }, .{}, &.{len});
 
                 // cross product is only defined for len == 3
                 const is_cross = comptime std.mem.eql(u8, op_name, "cross");
@@ -455,10 +480,10 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
                                 _ = v1.div(V.splat(getVal(T, i +% 2, 63)));
                             } else if (comptime std.mem.eql(u8, op_name, "mulScalar")) {
                                 const s_val = Q_time.splat(getVal(T, i +% 2, 63));
-                                _ = v1.mulScalar(s_val);
+                                _ = v1.mul(s_val);
                             } else if (comptime std.mem.eql(u8, op_name, "dot")) {
                                 const v2 = V.splat(getVal(T, i +% 5, 63));
-                                _ = v1.dot(v2);
+                                _ = v1.contract(v2, 0, 0);
                             } else if (comptime std.mem.eql(u8, op_name, "cross")) {
                                 // len == 3 guaranteed by the guard above
                                 const v2 = V.splat(getVal(T, i +% 5, 63));
@@ -488,6 +513,102 @@ fn bench_Vector(writer: *std.Io.Writer) !void {
         }
     }
     try writer.print("└──────────────────┴──────┴─────────┴─────────┴─────────┴─────────┴─────────┘\n", .{});
+}
+
+fn bench_HighDimTensor(writer: *std.Io.Writer) !void {
+    const ITERS: usize = 5_000;
+    const SAMPLES: usize = 5;
+
+    const getVal = struct {
+        fn f(comptime TT: type, i: usize, comptime mask: u7) TT {
+            const v: u8 = @as(u8, @truncate(i & @as(usize, mask))) + 1;
+            return if (comptime @typeInfo(TT) == .float) @floatFromInt(v) else @intCast(v);
+        }
+    }.f;
+
+    const computeStats = struct {
+        fn f(samples: []f64, iters: usize) f64 {
+            std.mem.sort(f64, samples, {}, std.sort.asc(f64));
+            const mid = samples.len / 2;
+            const median_ns = if (samples.len % 2 == 0)
+                (samples[mid - 1] + samples[mid]) / 2.0
+            else
+                samples[mid];
+            return median_ns / @as(f64, @floatFromInt(iters));
+        }
+    }.f;
+
+    try writer.print(
+        \\
+        \\ High Dimension Tensor benchmark — {d} iterations, {d} samples/cell
+        \\ (Results in ns/op)
+        \\
+        \\┌─────────────────┬──────┬──────────────┬──────────────┬──────────────┬──────────────┐
+        \\│ Operation       │ Type │        2x2x2 │        3x3x3 │        4x4x4 │  10x10x10x10 │
+        \\├─────────────────┼──────┼──────────────┼──────────────┼──────────────┼──────────────┤
+        \\
+    , .{ ITERS, SAMPLES });
+
+    const Types = .{ i32, i64, f32, f64 };
+    const TNames = .{ "i32", "i64", "f32", "f64" };
+
+    // Testing multiple structural bounds
+    const Shapes = .{
+        &.{ 2, 2, 2 },
+        &.{ 3, 3, 3 },
+        &.{ 4, 4, 4 },
+        &.{ 10, 10, 10, 10 },
+    };
+
+    const Ops = .{ "add", "sub", "mulElem", "mulScalar", "abs" };
+
+    inline for (Ops, 0..) |op_name, o_idx| {
+        inline for (Types, TNames) |T, tname| {
+            try writer.print("│ {s:<15} │ {s:<4} │", .{ op_name, tname });
+
+            inline for (Shapes) |shape| {
+                const V = Tensor(T, .{ .L = 1 }, .{}, shape);
+                const Q = Tensor(T, .{ .T = 1 }, .{}, &.{1}); // For scalar broadcasting operations
+
+                var samples: [SAMPLES]f64 = undefined;
+
+                for (0..SAMPLES) |s_idx| {
+                    const t_start = getTime();
+
+                    for (0..ITERS) |i| {
+                        std.mem.doNotOptimizeAway({
+                            const t1 = V.splat(getVal(T, i, 63));
+
+                            _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                                t1.add(V.splat(getVal(T, i +% 7, 63)))
+                            else if (comptime std.mem.eql(u8, op_name, "sub"))
+                                t1.sub(V.splat(getVal(T, i +% 3, 63)))
+                            else if (comptime std.mem.eql(u8, op_name, "mulElem"))
+                                t1.mul(V.splat(getVal(T, i +% 5, 63)))
+                            else if (comptime std.mem.eql(u8, op_name, "mulScalar"))
+                                t1.mul(Q.splat(getVal(T, i +% 2, 63)))
+                            else if (comptime std.mem.eql(u8, op_name, "abs"))
+                                t1.abs()
+                            else
+                                unreachable;
+                        });
+                    }
+
+                    const t_end = getTime();
+                    samples[s_idx] = @as(f64, @floatFromInt(t_start.durationTo(t_end).toNanoseconds()));
+                }
+
+                const median_ns_per_op = computeStats(&samples, ITERS);
+                try writer.print(" {d:>12.1} │", .{median_ns_per_op});
+            }
+            try writer.print("\n", .{});
+        }
+
+        if (o_idx < Ops.len - 1) {
+            try writer.print("├─────────────────┼──────┼──────────────┼──────────────┼──────────────┼──────────────┤\n", .{});
+        }
+    }
+    try writer.print("└─────────────────┴──────┴──────────────┴──────────────┴──────────────┴──────────────┘\n", .{});
 }
 
 fn vectorSIMDvsNative(comptime T: type, writer: *std.Io.Writer) !void {

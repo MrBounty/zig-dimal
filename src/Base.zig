@@ -186,12 +186,12 @@ test "BaseQuantities - Kinematics equations" {
     // Velocity = Distance / Time
     const v = d.div(t);
     try std.testing.expectEqual(25.0, v.data[0]);
-    try std.testing.expect(Speed.dims.eql(@TypeOf(v).dims));
+    try comptime std.testing.expect(Speed.dims.eql(@TypeOf(v).dims));
 
     // Acceleration = Velocity / Time
     const a = v.div(t);
     try std.testing.expectEqual(12.5, a.data[0]);
-    try std.testing.expect(Acceleration.dims.eql(@TypeOf(a).dims));
+    try comptime std.testing.expect(Acceleration.dims.eql(@TypeOf(a).dims));
 }
 
 test "BaseQuantities - Dynamics (Force and Work)" {
@@ -203,13 +203,13 @@ test "BaseQuantities - Dynamics (Force and Work)" {
     // Force = mass * acceleration
     const f = m.mul(a);
     try std.testing.expectEqual(98, f.data[0]);
-    try std.testing.expect(Force.dims.eql(@TypeOf(f).dims));
+    try comptime std.testing.expect(Force.dims.eql(@TypeOf(f).dims));
 
     // Energy (Work) = Force * distance
     const distance = Meter.Of(f32).splat(5.0);
     const energy = f.mul(distance);
     try std.testing.expectEqual(490, energy.data[0]);
-    try std.testing.expect(Energy.dims.eql(@TypeOf(energy).dims));
+    try comptime std.testing.expect(Energy.dims.eql(@TypeOf(energy).dims));
 }
 
 test "BaseQuantities - Electric combinations" {
@@ -219,7 +219,7 @@ test "BaseQuantities - Electric combinations" {
     // Charge = Current * time
     const charge = current.mul(time);
     try std.testing.expectEqual(6.0, charge.data[0]);
-    try std.testing.expect(ElectricCharge.dims.eql(@TypeOf(charge).dims));
+    try comptime std.testing.expect(ElectricCharge.dims.eql(@TypeOf(charge).dims));
 }
 
 test "Constants - Initialization and dimension checks" {

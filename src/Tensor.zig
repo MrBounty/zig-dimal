@@ -8,14 +8,14 @@ const Dimension = Dimensions.Dimension;
 // Comptime utilities
 // ─────────────────────────────────────────────────────────────────────────────
 
-pub fn shapeTotal(comptime shape: []const comptime_int) usize {
+pub fn shapeTotal(shape: []const comptime_int) usize {
     var t: comptime_int = 1;
     for (shape) |s| t *= s;
     return t;
 }
 
 /// Check if two shapes are strictly identical.
-pub fn shapeEql(comptime a: []const comptime_int, comptime b: []const comptime_int) bool {
+pub fn shapeEql(a: []const comptime_int, b: []const comptime_int) bool {
     if (a.len != b.len) return false;
     for (a, 0..) |v, i|
         if (v != b[i]) return false;
@@ -25,7 +25,7 @@ pub fn shapeEql(comptime a: []const comptime_int, comptime b: []const comptime_i
 /// Row-major (C-order) strides: strides[i] = product(shape[i+1..]).
 ///   e.g. shape {3, 4} → strides {4, 1}
 ///        shape {2, 3, 4} → strides {12, 4, 1}
-pub fn shapeStrides(comptime shape: []const comptime_int) [shape.len]comptime_int {
+pub fn shapeStrides(shape: []const comptime_int) [shape.len]comptime_int {
     var st: [shape.len]comptime_int = undefined;
     if (shape.len == 0) return st;
     st[shape.len - 1] = 1;
@@ -37,7 +37,7 @@ pub fn shapeStrides(comptime shape: []const comptime_int) [shape.len]comptime_in
 }
 
 /// Return a copy of `shape` with the element at `axis` removed.
-pub fn shapeRemoveAxis(comptime shape: []const comptime_int, comptime axis: comptime_int) [shape.len - 1]comptime_int {
+pub fn shapeRemoveAxis(shape: []const comptime_int, axis: comptime_int) [shape.len - 1]comptime_int {
     var out: [shape.len - 1]comptime_int = undefined;
     var j: comptime_int = 0;
     for (shape, 0..) |v, i| {
@@ -50,7 +50,7 @@ pub fn shapeRemoveAxis(comptime shape: []const comptime_int, comptime axis: comp
 }
 
 /// Concatenate two compile-time slices.
-pub fn shapeCat(comptime a: []const comptime_int, comptime b: []const comptime_int) [a.len + b.len]comptime_int {
+pub fn shapeCat(a: []const comptime_int, b: []const comptime_int) [a.len + b.len]comptime_int {
     var out: [a.len + b.len]comptime_int = undefined;
     for (a, 0..) |v, i| out[i] = v;
     for (b, 0..) |v, i| out[a.len + i] = v;
@@ -59,11 +59,7 @@ pub fn shapeCat(comptime a: []const comptime_int, comptime b: []const comptime_i
 
 /// Decode a flat row-major index into N-D coordinates.
 /// Called only in comptime contexts (all arguments are comptime).
-pub fn decodeFlatCoords(
-    comptime flat: comptime_int,
-    comptime n: comptime_int,
-    comptime strd: [n]comptime_int,
-) [n]usize {
+pub fn decodeFlatCoords(flat: comptime_int, n: comptime_int, strd: [n]comptime_int) [n]usize {
     var coords: [n]comptime_int = undefined;
     var tmp = flat;
     for (0..n) |i| {
@@ -75,11 +71,7 @@ pub fn decodeFlatCoords(
 
 /// Encode N-D coordinates into a flat row-major index.
 /// Called only in comptime contexts.
-pub fn encodeFlatCoords(
-    comptime coords: []const usize,
-    comptime n: usize,
-    comptime strd: [n]usize,
-) usize {
+pub fn encodeFlatCoords(coords: []const usize, n: usize, strd: [n]usize) usize {
     var flat: usize = 0;
     for (0..n) |i| flat += coords[i] * strd[i];
     return flat;
@@ -106,7 +98,7 @@ pub fn insertAxis(
     return out;
 }
 
-fn isInt(comptime T: type) bool {
+inline fn isInt(comptime T: type) bool {
     return @typeInfo(T) == .int or @typeInfo(T) == .comptime_int;
 }
 
@@ -130,25 +122,27 @@ fn finerScales(comptime T1: type, comptime T2: type) Scales {
         else
             scale1);
     }
-    comptime return out;
+    return out;
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // File-scope RHS normalisation helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn isTensor(comptime Rhs: type) bool {
+inline fn isTensor(comptime Rhs: type) bool {
     return comptime @typeInfo(Rhs) == .@"struct" and @hasDecl(Rhs, "ISTENSOR");
 }
 
-fn RhsTensorType(comptime T: type, comptime Rhs: type) type {
+inline fn RhsTensorType(comptime T: type, comptime Rhs: type) type {
     if (comptime isTensor(Rhs)) return Rhs;
     return Tensor(T, .{}, .{}, &.{1});
 }
 
-fn toRhsTensor(comptime T: type, r: anytype) RhsTensorType(T, @TypeOf(r)) {
+/// Take the anyvalue coming from operation and if it is a Tensor, return it.
+/// If it is a float or int, return a Tensor(T, .{}, .{}, .{1}).splat(r).
+inline fn toRhsTensor(comptime T: type, r: anytype) RhsTensorType(T, @TypeOf(r)) {
     const Rhs = @TypeOf(r);
     if (comptime isTensor(Rhs)) return r;
-    const scalar: T = switch (comptime @typeInfo(Rhs)) {
+    const scalar: T = switch (@typeInfo(Rhs)) {
         .comptime_int => switch (comptime @typeInfo(T)) {
             .float => @as(T, @floatFromInt(r)),
             else => @as(T, r),
@@ -278,11 +272,13 @@ pub fn Tensor(
             shape_,
         ) {
             const rhs_q = rhs(r);
-            const RhsType = @TypeOf(rhs_q);
+            const RhsType = @TypeOf(r);
             if (comptime !dims.eql(RhsType.dims))
                 @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
             if (comptime RhsType.total != 1 and !shapeEql(shape_, RhsType.shape))
                 @compileError("Shape mismatch in add: element-wise operations require identical shapes, or a scalar RHS.");
+            // if (comptime total == 1 and RhsType.scales.eql(scales))
+            //     return .{ .data = if (comptime isInt(T)) self.data +| r.data else self.data + r.data };
 
             const TargetType = Tensor(T, dims.argsOpt(), finerScales(Self, RhsType).argsOpt(), shape_);
             const l: Vec = if (comptime Self == TargetType) self.data else self.to(TargetType).data;
@@ -450,6 +446,9 @@ pub fn Tensor(
             const DestT = ActualDest.ValueType;
             const DestVec = @Vector(total, DestT);
 
+            if (comptime ratio == 1.0 and T == DestT)
+                return .{ .data = self.data };
+
             // If ratio is 1, handle type conversion correctly based on BOTH source and dest types
             if (comptime ratio == 1.0) {
                 const T_info = @typeInfo(T);
@@ -533,7 +532,7 @@ pub fn Tensor(
         pub inline fn eq(self: Self, r: anytype) CmpResult {
             const rhs_q = rhs(r);
             if (comptime !dims.eql(@TypeOf(rhs_q).dims))
-                @compileError("Dimension mismatch in eq: " ++ dims.str() ++ " vs " ++ @TypeOf(rhs_q).dims.str());
+                @compileError("Dimension mismatch in ne.");
             const p = resolveScalePair(self, rhs_q);
             return cmpResult(p.l == p.r);
         }

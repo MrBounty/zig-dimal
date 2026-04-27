@@ -10,27 +10,27 @@ pub fn main(init: std.process.Init) !void {
 
     io = init.io;
 
-    try vectorSIMDvsNative(f64, &stdout_writer.interface);
-    try stdout_writer.flush();
-    try vectorSIMDvsNative(f32, &stdout_writer.interface);
-    try stdout_writer.flush();
-    try vectorSIMDvsNative(i32, &stdout_writer.interface);
-    try stdout_writer.flush();
-    try vectorSIMDvsNative(i64, &stdout_writer.interface);
-    try stdout_writer.flush();
-    try vectorSIMDvsNative(i128, &stdout_writer.interface);
-    try stdout_writer.flush();
-
-    try bench_Scalar(&stdout_writer.interface);
-    try stdout_writer.flush();
+    // try vectorSIMDvsNative(f64, &stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try vectorSIMDvsNative(f32, &stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try vectorSIMDvsNative(i32, &stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try vectorSIMDvsNative(i64, &stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try vectorSIMDvsNative(i128, &stdout_writer.interface);
+    // try stdout_writer.flush();
+    //
+    // try bench_Scalar(&stdout_writer.interface);
+    // try stdout_writer.flush();
     try bench_vsNative(&stdout_writer.interface);
     try stdout_writer.flush();
-    try bench_crossTypeVsNative(&stdout_writer.interface);
-    try stdout_writer.flush();
-    try bench_Vector(&stdout_writer.interface);
-    try stdout_writer.flush();
-    try bench_HighDimTensor(&stdout_writer.interface);
-    try stdout_writer.flush();
+    // try bench_crossTypeVsNative(&stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try bench_Vector(&stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try bench_HighDimTensor(&stdout_writer.interface);
+    // try stdout_writer.flush();
 }
 
 fn getTime() Io.Timestamp {
@@ -200,24 +200,22 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
             var native_total_ns: f64 = 0;
             var quantity_total_ns: f64 = 0;
 
-            const M = Tensor(T, .{ .L = 1 }, .{}, &.{1});
-            const S = Tensor(T, .{ .T = 1 }, .{}, &.{1});
+            const M = Tensor(T, .{}, .{}, &.{1});
 
             std.mem.doNotOptimizeAway({
                 for (0..SAMPLES) |_| {
                     // --- 1. Benchmark Native ---
                     const n_start = getTime();
-                    for (0..ITERS) |i| {
-                        const a = getValT(T, i);
-                        const b = getValT(T, 2);
-
+                    const a = getValT(T, 10);
+                    const b = getValT(T, 2);
+                    for (0..ITERS) |_| {
                         // Native logic branch
                         _ = if (comptime std.mem.eql(u8, op_name, "add"))
-                            a + b
+                            if (comptime @typeInfo(T) == .int) a +| b else a + b
                         else if (comptime std.mem.eql(u8, op_name, "sub"))
-                            a - b
+                            if (comptime @typeInfo(T) == .int) a -| b else a - b
                         else if (comptime std.mem.eql(u8, op_name, "mul"))
-                            a * b
+                            if (comptime @typeInfo(T) == .int) a *| b else a * b
                         else if (comptime std.mem.eql(u8, op_name, "div"))
                             if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b
                         else if (comptime std.mem.eql(u8, op_name, "abs"))
@@ -234,10 +232,9 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
 
                     // --- 2. Benchmark Scalar ---
                     const q_start = getTime();
-                    for (0..ITERS) |i| {
-                        const qa = M.splat(getValT(T, i));
-                        const qb = if (comptime std.mem.eql(u8, op_name, "div")) S.splat(getValT(T, 2)) else M.splat(getValT(T, 2));
-
+                    const qa = M.splat(getValT(T, 10));
+                    const qb = M.splat(getValT(T, 2));
+                    for (0..ITERS) |_| {
                         // Scalar logic branch
                         _ = if (comptime std.mem.eql(u8, op_name, "add"))
                             qa.add(qb)

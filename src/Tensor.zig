@@ -761,7 +761,7 @@ pub fn Tensor(
             return @sqrt(sq);
         }
 
-        /// Product of all elements.  Result has shape {1}; dimension exponent × total.
+        /// Product of all elements.  Result has shape {1}; dimension exponent * total.
         pub inline fn product(self: Self) Tensor(
             T,
             dims.scale(@as(comptime_int, total)).argsOpt(),
@@ -1263,7 +1263,7 @@ test "Vector vs Scalar broadcast comparison" {
     try std.testing.expect(exact[1] == false);
 }
 
-test "Vector contract — dot product (rank-1 × rank-1)" {
+test "Vector contract — dot product (rank-1 * rank-1)" {
     const Meter3 = Tensor(f32, .{ .L = 1 }, .{}, &.{3});
     const Newton3 = Tensor(f32, .{ .M = 1, .L = 1, .T = -2 }, .{}, &.{3});
 
@@ -1277,7 +1277,7 @@ test "Vector contract — dot product (rank-1 × rank-1)" {
     try std.testing.expectEqual(-2, @TypeOf(work).dims.get(.T));
 }
 
-test "Vector contract — matrix multiply (rank-2 × rank-2)" {
+test "Vector contract — matrix multiply (rank-2 * rank-2)" {
     const A = Tensor(f32, .{}, .{}, &.{ 2, 3 });
     const B = Tensor(f32, .{}, .{}, &.{ 3, 2 });
 

@@ -1,5 +1,4 @@
 const std = @import("std");
-const hlp = @import("helper.zig");
 const Dimensions = @import("Dimensions.zig");
 const Dimension = @import("Dimensions.zig").Dimension;
 
@@ -99,7 +98,7 @@ data: std.EnumArray(Dimension, UnitScale),
 pub fn init(comptime init_val: ArgOpts) Self {
     comptime var s = Self{ .data = std.EnumArray(Dimension, UnitScale).initFill(.none) };
     inline for (std.meta.fields(@TypeOf(init_val))) |f| {
-        if (comptime hlp.isInt(@TypeOf(@field(init_val, f.name))))
+        if (comptime @typeInfo(@TypeOf(@field(init_val, f.name))) == .comptime_int)
             s.data.set(@field(Dimension, f.name), @enumFromInt(@field(init_val, f.name)))
         else
             s.data.set(@field(Dimension, f.name), @field(init_val, f.name));

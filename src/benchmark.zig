@@ -262,19 +262,19 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
                 for (0..ITERS) |_| {
                     // Scalar logic branch
                     _ = if (comptime std.mem.eql(u8, op_name, "add"))
-                        &qa.add(&qb)
+                        qa.add(qb)
                     else if (comptime std.mem.eql(u8, op_name, "sub"))
-                        &qa.sub(&qb)
+                        qa.sub(qb)
                     else if (comptime std.mem.eql(u8, op_name, "mul"))
-                        &qa.mul(&qb)
+                        qa.mul(qb)
                     else if (comptime std.mem.eql(u8, op_name, "div"))
-                        &qa.div(&qb)
+                        qa.div(qb)
                     else if (comptime std.mem.eql(u8, op_name, "abs"))
-                        &qa.abs()
+                        qa.abs()
                     else if (comptime std.mem.eql(u8, op_name, "eq"))
-                        &qa.eq(&qb)
+                        qa.eq(qb)
                     else if (comptime std.mem.eql(u8, op_name, "gt"))
-                        &qa.gt(&qb)
+                        qa.gt(qb)
                     else
                         unreachable;
                 }

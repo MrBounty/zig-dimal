@@ -26,11 +26,11 @@ pub fn main(init: std.process.Init) !void {
     try bench_vsNative(&stdout_writer.interface);
     try stdout_writer.flush();
     // try bench_crossTypeVsNative(&stdout_writer.interface);
-    try stdout_writer.flush();
-    try bench_Vector(&stdout_writer.interface);
-    try stdout_writer.flush();
-    try bench_HighDimTensor(&stdout_writer.interface);
-    try stdout_writer.flush();
+    // try stdout_writer.flush();
+    // try bench_Vector(&stdout_writer.interface);
+    // try stdout_writer.flush();
+    // try bench_HighDimTensor(&stdout_writer.interface);
+    // try stdout_writer.flush();
 }
 
 fn getTime() Io.Timestamp {
@@ -180,8 +180,8 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
         }
     }.f;
 
-    const Types = .{ f64, i64, i128, f32, f64 };
-    const TNames = .{ "f64", "i64", "i128", "f32", "f64" };
+    const Types = .{ i32, i64, i128, f32, f64 };
+    const TNames = .{ "i32", "i64", "i128", "f32", "f64" };
     // Expanded Ops to match bench_Scalar
     const Ops = .{ "add", "sub", "mul", "div", "abs", "eq", "gt" };
 
@@ -203,86 +203,84 @@ fn bench_vsNative(writer: *std.Io.Writer) !void {
 
             const M = Tensor(T, .{}, .{}, &.{1});
 
-            std.mem.doNotOptimizeAway({
-                for (0..SAMPLES) |_| {
-                    // --- 1. Benchmark Native ---
-                    const n_start = getTime();
-                    const a = getValT(T, 10);
-                    const b = getValT(T, 2);
-                    for (0..ITERS) |_| {
-                        // Native logic branch
-                        _ = if (comptime std.mem.eql(u8, op_name, "add"))
-                            if (comptime @typeInfo(T) == .int) a +| b else a + b
-                        else if (comptime std.mem.eql(u8, op_name, "sub"))
-                            if (comptime @typeInfo(T) == .int) a -| b else a - b
-                        else if (comptime std.mem.eql(u8, op_name, "mul"))
-                            if (comptime @typeInfo(T) == .int) a *| b else a * b
-                        else if (comptime std.mem.eql(u8, op_name, "div"))
-                            if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b
-                        else if (comptime std.mem.eql(u8, op_name, "abs"))
-                            if (comptime @typeInfo(T) == .int) @abs(a) else @as(T, @abs(a))
-                        else if (comptime std.mem.eql(u8, op_name, "eq"))
-                            a == b
-                        else if (comptime std.mem.eql(u8, op_name, "gt"))
-                            a > b
-                        else
-                            unreachable;
-                    }
-                    const n_end = getTime();
-                    native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
-
-                    const v_start = getTime();
-                    const va = getValT(T, 10);
-                    const vb = getValT(T, 2);
-                    for (0..ITERS) |_| {
-                        // Native logic branch
-                        _ = if (comptime std.mem.eql(u8, op_name, "add"))
-                            if (comptime @typeInfo(T) == .int) va +| vb else va + vb
-                        else if (comptime std.mem.eql(u8, op_name, "sub"))
-                            if (comptime @typeInfo(T) == .int) va -| vb else va - vb
-                        else if (comptime std.mem.eql(u8, op_name, "mul"))
-                            if (comptime @typeInfo(T) == .int) va *| vb else va * vb
-                        else if (comptime std.mem.eql(u8, op_name, "div"))
-                            if (comptime @typeInfo(T) == .int) @divTrunc(va, vb) else va / vb
-                        else if (comptime std.mem.eql(u8, op_name, "abs"))
-                            if (comptime @typeInfo(T) == .int) @abs(va) else @as(T, @abs(va))
-                        else if (comptime std.mem.eql(u8, op_name, "eq"))
-                            va == vb
-                        else if (comptime std.mem.eql(u8, op_name, "gt"))
-                            va > vb
-                        else
-                            unreachable;
-                    }
-                    const v_end = getTime();
-                    vector_total_ns += @as(f64, @floatFromInt(v_start.durationTo(v_end).toNanoseconds()));
-
-                    // --- 2. Benchmark Scalar ---
-                    const q_start = getTime();
-                    const qa = M.splat(getValT(T, 10));
-                    const qb = M.splat(getValT(T, 2));
-                    for (0..ITERS) |_| {
-                        // Scalar logic branch
-                        _ = if (comptime std.mem.eql(u8, op_name, "add"))
-                            qa.add(qb)
-                        else if (comptime std.mem.eql(u8, op_name, "sub"))
-                            qa.sub(qb)
-                        else if (comptime std.mem.eql(u8, op_name, "mul"))
-                            qa.mul(qb)
-                        else if (comptime std.mem.eql(u8, op_name, "div"))
-                            qa.div(qb)
-                        else if (comptime std.mem.eql(u8, op_name, "abs"))
-                            qa.abs()
-                        else if (comptime std.mem.eql(u8, op_name, "eq"))
-                            qa.eq(qb)
-                        else if (comptime std.mem.eql(u8, op_name, "gt"))
-                            qa.gt(qb)
-                        else
-                            unreachable;
-                    }
-                    const q_end = getTime();
-                    tensor_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
+            for (0..SAMPLES) |_| {
+                // --- 1. Benchmark Native ---
+                const n_start = getTime();
+                const a = getValT(T, 10);
+                const b = getValT(T, 2);
+                for (0..ITERS) |_| {
+                    // Native logic branch
+                    _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                        if (comptime @typeInfo(T) == .int) a +| b else a + b
+                    else if (comptime std.mem.eql(u8, op_name, "sub"))
+                        if (comptime @typeInfo(T) == .int) a -| b else a - b
+                    else if (comptime std.mem.eql(u8, op_name, "mul"))
+                        if (comptime @typeInfo(T) == .int) a *| b else a * b
+                    else if (comptime std.mem.eql(u8, op_name, "div"))
+                        if (comptime @typeInfo(T) == .int) @divTrunc(a, b) else a / b
+                    else if (comptime std.mem.eql(u8, op_name, "abs"))
+                        if (comptime @typeInfo(T) == .int) @abs(a) else @as(T, @abs(a))
+                    else if (comptime std.mem.eql(u8, op_name, "eq"))
+                        a == b
+                    else if (comptime std.mem.eql(u8, op_name, "gt"))
+                        a > b
+                    else
+                        unreachable;
                 }
-            });
+                const n_end = getTime();
+                native_total_ns += @as(f64, @floatFromInt(n_start.durationTo(n_end).toNanoseconds()));
+
+                const v_start = getTime();
+                const va = @Vector(1, T){getValT(T, 10)};
+                const vb = @Vector(1, T){getValT(T, 2)};
+                for (0..ITERS) |_| {
+                    // Native logic branch
+                    _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                        if (comptime @typeInfo(T) == .int) va +| vb else va + vb
+                    else if (comptime std.mem.eql(u8, op_name, "sub"))
+                        if (comptime @typeInfo(T) == .int) va -| vb else va - vb
+                    else if (comptime std.mem.eql(u8, op_name, "mul"))
+                        if (comptime @typeInfo(T) == .int) va *| vb else va * vb
+                    else if (comptime std.mem.eql(u8, op_name, "div"))
+                        if (comptime @typeInfo(T) == .int) @divTrunc(va, vb) else va / vb
+                    else if (comptime std.mem.eql(u8, op_name, "abs"))
+                        if (comptime @typeInfo(T) == .int) @as(T, @intCast(@abs(va[0]))) else @abs(va)
+                    else if (comptime std.mem.eql(u8, op_name, "eq"))
+                        va == vb
+                    else if (comptime std.mem.eql(u8, op_name, "gt"))
+                        va > vb
+                    else
+                        unreachable;
+                }
+                const v_end = getTime();
+                vector_total_ns += @as(f64, @floatFromInt(v_start.durationTo(v_end).toNanoseconds()));
+
+                // --- 2. Benchmark Scalar ---
+                const q_start = getTime();
+                const qa = M.splat(getValT(T, 10));
+                const qb = M.splat(getValT(T, 2));
+                for (0..ITERS) |_| {
+                    // Scalar logic branch
+                    _ = if (comptime std.mem.eql(u8, op_name, "add"))
+                        &qa.add(&qb)
+                    else if (comptime std.mem.eql(u8, op_name, "sub"))
+                        &qa.sub(&qb)
+                    else if (comptime std.mem.eql(u8, op_name, "mul"))
+                        &qa.mul(&qb)
+                    else if (comptime std.mem.eql(u8, op_name, "div"))
+                        &qa.div(&qb)
+                    else if (comptime std.mem.eql(u8, op_name, "abs"))
+                        &qa.abs()
+                    else if (comptime std.mem.eql(u8, op_name, "eq"))
+                        &qa.eq(&qb)
+                    else if (comptime std.mem.eql(u8, op_name, "gt"))
+                        &qa.gt(&qb)
+                    else
+                        unreachable;
+                }
+                const q_end = getTime();
+                tensor_total_ns += @as(f64, @floatFromInt(q_start.durationTo(q_end).toNanoseconds()));
+            }
 
             const avg_n = (native_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));
             const avg_v = (vector_total_ns / SAMPLES) / @as(f64, @floatFromInt(ITERS));

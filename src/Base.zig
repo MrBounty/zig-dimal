@@ -3,7 +3,7 @@ const std = @import("std");
 // Adjust these imports to match your actual file names
 const Dimensions = @import("Dimensions.zig");
 const Scales = @import("Scales.zig");
-const Tensor = @import("Tensor.zig").Tensor;
+const Tensor = @import("Tensor.zig").TensorStatic;
 
 fn PhysicalConstant(comptime d: Dimensions.ArgOpts, comptime val: f64, comptime s: Scales.ArgOpts) type {
     return struct {

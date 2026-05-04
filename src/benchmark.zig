@@ -10,27 +10,27 @@ pub fn main(init: std.process.Init) !void {
 
     io = init.io;
 
-    // try vectorSIMDvsNative(f64, &stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try vectorSIMDvsNative(f32, &stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try vectorSIMDvsNative(i32, &stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try vectorSIMDvsNative(i64, &stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try vectorSIMDvsNative(i128, &stdout_writer.interface);
-    // try stdout_writer.flush();
-    //
-    // try bench_Scalar(&stdout_writer.interface);
-    // try stdout_writer.flush();
+    try vectorSIMDvsNative(f64, &stdout_writer.interface);
+    try stdout_writer.flush();
+    try vectorSIMDvsNative(f32, &stdout_writer.interface);
+    try stdout_writer.flush();
+    try vectorSIMDvsNative(i32, &stdout_writer.interface);
+    try stdout_writer.flush();
+    try vectorSIMDvsNative(i64, &stdout_writer.interface);
+    try stdout_writer.flush();
+    try vectorSIMDvsNative(i128, &stdout_writer.interface);
+    try stdout_writer.flush();
+
+    try bench_Scalar(&stdout_writer.interface);
+    try stdout_writer.flush();
     try bench_vsNative(&stdout_writer.interface);
     try stdout_writer.flush();
-    // try bench_crossTypeVsNative(&stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try bench_Vector(&stdout_writer.interface);
-    // try stdout_writer.flush();
-    // try bench_HighDimTensor(&stdout_writer.interface);
-    // try stdout_writer.flush();
+    try bench_crossTypeVsNative(&stdout_writer.interface);
+    try stdout_writer.flush();
+    try bench_Vector(&stdout_writer.interface);
+    try stdout_writer.flush();
+    try bench_HighDimTensor(&stdout_writer.interface);
+    try stdout_writer.flush();
 }
 
 fn getTime() Io.Timestamp {
@@ -128,7 +128,7 @@ fn bench_Scalar(writer: *std.Io.Writer) !void {
                             else if (comptime std.mem.eql(u8, op_name, "gt"))
                                 (M.splat(getVal(T, i, 63))).gt(M.splat(getVal(T, i +% 3, 63)))
                             else
-                                (M.splat(getVal(T, i, 63))).mul(3);
+                                (M.splat(getVal(T, i, 63))).mul(M.splat(3));
                         },
                     );
                 }

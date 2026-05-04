@@ -1,6 +1,6 @@
 .{
     .name = .dimal,
-    .version = "0.1.0",
+    .version = "0.2.1",
     .fingerprint = 0x9453b1ff1e52d858,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{},

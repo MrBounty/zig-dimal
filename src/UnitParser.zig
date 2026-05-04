@@ -17,7 +17,7 @@ pub const UnitParseError = error{
 
 /// Parses strings like "km/s^2", "m", "kg*m/s^2", "1/min".
 /// Evaluates entirely at comptime.
-pub fn parseUnit(comptime str: []const u8) !ParsedUnit {
+pub fn parseUnit(str: []const u8) !ParsedUnit {
     if (str.len == 0) return UnitParseError.EmptyStr;
 
     var parsed: ParsedUnit = .{ .dims = .{}, .scales = .{} };

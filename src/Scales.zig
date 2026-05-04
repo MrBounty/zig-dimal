@@ -59,7 +59,8 @@ pub const UnitScale = enum(isize) {
         var buf: [16]u8 = undefined;
         return switch (self) {
             .none => "",
-            .P, .T, .G, .M, .k, .h, .da, .d, .c, .m, .u, .n, .p, .f, .min, .hour, .year, .inch, .ft, .yd, .mi, .oz, .lb, .st => @tagName(self),
+            .P, .T, .G, .M, .k, .h, .da, .d, .c, .m, .u, .n, .p, .f, .min, .year, .inch, .ft, .yd, .mi, .oz, .lb, .st => @tagName(self),
+            .hour => "h",
             else => std.fmt.bufPrint(&buf, "[{d}]", .{@intFromEnum(self)}) catch "[]", // This cannot be inline because of non exhaustive enum, but that's ok, it is just str, not calculation
         };
     }

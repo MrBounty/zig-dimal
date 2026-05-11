@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const Tensor = @import("Tensor.zig").Tensor;
+pub const Tensor = @import("Tensor.zig").TensorStatic;
 pub const Dimensions = @import("Dimensions.zig");
 pub const Scales = @import("Scales.zig");
 pub const Base = @import("Base.zig");

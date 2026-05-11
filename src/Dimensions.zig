@@ -1,13 +1,13 @@
 const std = @import("std");
 
 pub const ArgOpts = struct {
-    L: comptime_int = 0,
-    M: comptime_int = 0,
-    T: comptime_int = 0,
-    I: comptime_int = 0,
-    Tp: comptime_int = 0,
-    N: comptime_int = 0,
-    J: comptime_int = 0,
+    L: isize = 0,
+    M: isize = 0,
+    T: isize = 0,
+    I: isize = 0,
+    Tp: isize = 0,
+    N: isize = 0,
+    J: isize = 0,
 };
 
 pub const Dimension = enum {

@@ -48,7 +48,7 @@ pub fn parseUnit(str: []const u8) !ParsedUnit {
     return parsed;
 }
 
-fn parseSegment(comptime segment: []const u8, parsed: *ParsedUnit, is_denominator: bool) !void {
+fn parseSegment(segment: []const u8, parsed: *ParsedUnit, is_denominator: bool) !void {
     var scale: Scales.UnitScale = .none;
     var found_scale = false;
     var active_dim: ?Dimensions.Dimension = null;

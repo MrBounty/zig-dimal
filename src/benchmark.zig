@@ -1,6 +1,6 @@
 const std = @import("std");
 const Io = std.Io;
-const Tensor = @import("Tensor.zig").TensorStatic;
+const Tensor = @import("TensorStatic.zig").TensorStatic;
 
 var io: Io = undefined;
 pub fn main(init: std.process.Init) !void {

@@ -5,17 +5,6 @@ const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 const sh = @import("shared.zig");
 
-// ─────────────────────────────────────────────────────────────────────────────
-// File-scope RHS normalisation helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-inline fn isTensor(comptime Rhs: type) bool {
-    return comptime @typeInfo(Rhs) == .@"struct" and @hasDecl(Rhs, "ISTENSOR");
-}
-
-/// SIMD implementation of a Tensor.
-/// Limited to tensor of ~2000 values.
-/// For more, see either TensorAlloc or TensorGPU
 pub fn TensorStatic(
     comptime T: type,
     comptime d_opt: Dimensions.ArgOpts,
@@ -50,6 +39,7 @@ pub fn TensorStatic(
         pub const total: comptime_int = _total;
         pub const strides_arr: [shape_.len]comptime_int = _strides;
         pub const ISTENSOR = true;
+        pub const TENSORSTATIC = true;
 
         /// Convert N-D coords (row-major) to flat index — fully comptime.
         /// Usage: Tensor.idx(.{row, col})
@@ -86,7 +76,7 @@ pub fn TensorStatic(
             shape,
         ) {
             const RhsType = @TypeOf(rhs);
-            if (comptime !isTensor(RhsType))
+            if (comptime !sh.isTensor(RhsType))
                 @compileError("rhs can only be a Tensor ");
             if (comptime !dims.eql(RhsType.dims))
                 @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
@@ -108,7 +98,7 @@ pub fn TensorStatic(
             shape,
         ) {
             const RhsType = @TypeOf(rhs);
-            if (comptime !isTensor(RhsType))
+            if (comptime !sh.isTensor(RhsType))
                 @compileError("rhs can only be a Tensor ");
             if (comptime !dims.eql(RhsType.dims))
                 @compileError("Dimension mismatch in add: " ++ dims.str() ++ " vs " ++ RhsType.dims.str());
@@ -130,7 +120,7 @@ pub fn TensorStatic(
             shape,
         ) {
             const RhsType = @TypeOf(rhs);
-            if (comptime !isTensor(RhsType))
+            if (comptime !sh.isTensor(RhsType))
                 @compileError("rhs can only be a Tensor ");
             if (comptime RhsType.total != 1 and !sh.shapeEql(shape, RhsType.shape))
                 @compileError("Shape mismatch in mul: element-wise operations require identical shapes, or a scalar RHS.");
@@ -151,7 +141,7 @@ pub fn TensorStatic(
             shape,
         ) {
             const RhsType = @TypeOf(rhs);
-            if (comptime !isTensor(RhsType))
+            if (comptime !sh.isTensor(RhsType))
                 @compileError("rhs can only be a Tensor ");
             if (comptime RhsType.total != 1 and !sh.shapeEql(shape, RhsType.shape))
                 @compileError("Shape mismatch in div: element-wise operations require identical shapes, or a scalar RHS.");
@@ -362,7 +352,7 @@ pub fn TensorStatic(
         /// Resolve both sides to the finer scale, broadcasting shape {1} RHS if needed.
         inline fn resolveScalePair(self: *const Self, rhs: anytype) struct { l: Vec, r: Vec } {
             const RhsType = @TypeOf(rhs);
-            if (comptime !isTensor(RhsType))
+            if (comptime !sh.isTensor(RhsType))
                 @compileError("rhs can only be a Tensor ");
             if (comptime RhsType.total != 1 and !sh.shapeEql(shape, RhsType.shape))
                 @compileError("Shape mismatch in comparison: element-wise operations require identical shapes, or a scalar RHS.");
@@ -433,7 +423,7 @@ pub fn TensorStatic(
             comptime axis_b: usize,
         ) blk: {
             const RhsType = @TypeOf(rhs);
-            if (!isTensor(RhsType))
+            if (!sh.isTensor(RhsType))
                 @compileError("rhs can only be a Tensor ");
             if (axis_a >= rank) @compileError("contract: axis_a out of bounds");
             if (axis_b >= RhsType.rank) @compileError("contract: axis_b out of bounds");
@@ -558,7 +548,7 @@ pub fn TensorStatic(
         ) {
             const RhsType = @TypeOf(rhs);
 
-            if (!isTensor(RhsType))
+            if (!sh.isTensor(RhsType))
                 @compileError("rhs can only be a Tensor ");
             if (comptime rank != 1 or shape[0] != 3 or RhsType.rank != 1 or RhsType.shape[0] != 3)
                 @compileError("cross product is only defined for 3D vectors (rank-1, length 3)");

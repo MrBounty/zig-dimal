@@ -4,6 +4,18 @@ const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 
+pub fn isTensor(comptime T: type) bool {
+    return comptime @typeInfo(T) == .@"struct" and @hasDecl(T, "ISTENSOR");
+}
+
+pub fn isTensorStatic(comptime T: type) bool {
+    return comptime isTensor(T) and @hasDecl(T, "TENSORSTATIC");
+}
+
+pub fn isTensorAlloc(comptime T: type) bool {
+    return comptime isTensor(T) and @hasDecl(T, "TENSORALLOC");
+}
+
 pub fn shapeTotal(shape: []const comptime_int) usize {
     var t: comptime_int = 1;
     for (shape) |s| t *= s;

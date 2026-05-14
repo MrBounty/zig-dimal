@@ -669,7 +669,7 @@ pub fn TensorStatic(
 
 // ─── Scalar tests ─────────────────────────────────────────────────────────
 
-test "Scalar initiat" {
+test "TensorStatic | Scalar initiat" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{ .L = @enumFromInt(-3) }, &.{1});
     const Second = TensorStatic(f32, .{ .T = 1 }, .{ .T = .n }, &.{1});
 
@@ -680,7 +680,7 @@ test "Scalar initiat" {
     try std.testing.expectEqual(2, time.data[0]);
 }
 
-test "Scalar comparisons (eq, ne, gt, gte, lt, lte)" {
+test "TensorStatic | Scalar comparisons (eq, ne, gt, gte, lt, lte)" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const KiloMeter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
 
@@ -703,7 +703,7 @@ test "Scalar comparisons (eq, ne, gt, gte, lt, lte)" {
     try std.testing.expect(m1000.lte(km2));
 }
 
-test "Scalar Add" {
+test "TensorStatic | Scalar Add" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const KiloMeter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
     const KiloMeter_f = TensorStatic(f64, .{ .L = 1 }, .{ .L = .k }, &.{1});
@@ -726,7 +726,7 @@ test "Scalar Add" {
     try std.testing.expectApproxEqAbs(2.01, added4.data[0], 0.000001);
 }
 
-test "Scalar Sub" {
+test "TensorStatic | Scalar Sub" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const KiloMeter_f = TensorStatic(f64, .{ .L = 1 }, .{ .L = .k }, &.{1});
 
@@ -743,7 +743,7 @@ test "Scalar Sub" {
     try std.testing.expectApproxEqAbs(2000, diff3.data[0], 1e-4);
 }
 
-test "Scalar MulBy" {
+test "TensorStatic | Scalar MulBy" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const Second = TensorStatic(f32, .{ .T = 1 }, .{}, &.{1});
 
@@ -760,7 +760,7 @@ test "Scalar MulBy" {
     try std.testing.expectEqual(2, @TypeOf(area).dims.get(.L));
 }
 
-test "Scalar MulBy with scale" {
+test "TensorStatic | Scalar MulBy with scale" {
     const KiloMeter = TensorStatic(f32, .{ .L = 1 }, .{ .L = .k }, &.{1});
     const KiloGram = TensorStatic(f32, .{ .M = 1 }, .{ .M = .k }, &.{1});
 
@@ -771,7 +771,7 @@ test "Scalar MulBy with scale" {
     try std.testing.expectEqual(1, @TypeOf(prod).dims.get(.M));
 }
 
-test "Scalar MulBy with type change" {
+test "TensorStatic | Scalar MulBy with type change" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
     const Second = TensorStatic(f64, .{ .T = 1 }, .{}, &.{1});
     const KmSec = TensorStatic(i64, .{ .L = 1, .T = 1 }, .{ .L = .k }, &.{1});
@@ -784,7 +784,7 @@ test "Scalar MulBy with type change" {
     try std.testing.expectApproxEqAbs(12.0, d.mul(t).to(KmSec_f).data[0], 0.0001);
 }
 
-test "Scalar MulBy small" {
+test "TensorStatic | Scalar MulBy small" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .n }, &.{1});
     const Second = TensorStatic(f32, .{ .T = 1 }, .{}, &.{1});
     const d = Meter.splat(3);
@@ -792,7 +792,7 @@ test "Scalar MulBy small" {
     try std.testing.expectEqual(12, d.mul(t).data[0]);
 }
 
-test "Scalar MulBy dimensionless" {
+test "TensorStatic | Scalar MulBy dimensionless" {
     const DimLess = TensorStatic(i128, .{}, .{}, &.{1});
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const d = Meter.splat(7);
@@ -800,7 +800,7 @@ test "Scalar MulBy dimensionless" {
     try std.testing.expectEqual(21, scaled.data[0]);
 }
 
-test "Scalar Sqrt" {
+test "TensorStatic | Scalar Sqrt" {
     const MeterSquare = TensorStatic(i128, .{ .L = 2 }, .{}, &.{1});
     const MeterSquare_f = TensorStatic(f64, .{ .L = 2 }, .{}, &.{1});
 
@@ -818,7 +818,7 @@ test "Scalar Sqrt" {
     try std.testing.expectApproxEqAbs(4.472135955, scaled2.data[0], 1e-4);
 }
 
-test "Scalar Chained: velocity and acceleration" {
+test "TensorStatic | Scalar Chained: velocity and acceleration" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const Second = TensorStatic(f32, .{ .T = 1 }, .{}, &.{1});
 
@@ -832,7 +832,7 @@ test "Scalar Chained: velocity and acceleration" {
     try std.testing.expectEqual(5, accel.data[0]);
 }
 
-test "Scalar DivBy integer exact" {
+test "TensorStatic | Scalar DivBy integer exact" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const Second = TensorStatic(f32, .{ .T = 1 }, .{}, &.{1});
 
@@ -842,7 +842,7 @@ test "Scalar DivBy integer exact" {
     try std.testing.expectEqual(30, vel.data[0]);
 }
 
-test "Scalar Finer scales skip dim 0" {
+test "TensorStatic | Scalar Finer scales skip dim 0" {
     const Dimless = TensorStatic(i128, .{}, .{}, &.{1});
     const KiloMetre = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
 
@@ -853,7 +853,7 @@ test "Scalar Finer scales skip dim 0" {
     try std.testing.expectEqual(Scales.UnitScale.k, @TypeOf(vel).scales.get(.L));
 }
 
-test "Scalar Conversion chain: km -> m -> cm" {
+test "TensorStatic | Scalar Conversion chain: km -> m -> cm" {
     const KiloMeter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const CentiMeter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .c }, &.{1});
@@ -865,7 +865,7 @@ test "Scalar Conversion chain: km -> m -> cm" {
     try std.testing.expectEqual(1_500_000, cm.data[0]);
 }
 
-test "Scalar Conversion: hours -> minutes -> seconds" {
+test "TensorStatic | Scalar Conversion: hours -> minutes -> seconds" {
     const Hour = TensorStatic(i128, .{ .T = 1 }, .{ .T = .hour }, &.{1});
     const Minute = TensorStatic(i128, .{ .T = 1 }, .{ .T = .min }, &.{1});
     const Second = TensorStatic(i128, .{ .T = 1 }, .{}, &.{1});
@@ -877,7 +877,7 @@ test "Scalar Conversion: hours -> minutes -> seconds" {
     try std.testing.expectEqual(3600, sec.data[0]);
 }
 
-test "Scalar Format" {
+test "TensorStatic | Scalar Format" {
     const MeterPerSecondSq = TensorStatic(f32, .{ .L = 1, .T = -2 }, .{ .T = .n }, &.{1});
     const Meter = TensorStatic(f32, .{ .L = 1 }, .{}, &.{1});
 
@@ -892,7 +892,7 @@ test "Scalar Format" {
     try std.testing.expectEqualStrings("9.81m.ns⁻²", res);
 }
 
-test "Scalar Abs" {
+test "TensorStatic | Scalar Abs" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const MeterF = TensorStatic(f32, .{ .L = 1 }, .{}, &.{1});
 
@@ -900,21 +900,21 @@ test "Scalar Abs" {
     try std.testing.expectEqual(42.5, MeterF.splat(-42.5).abs().data[0]);
 }
 
-test "Scalar Pow" {
+test "TensorStatic | Scalar Pow" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
     const d = Meter.splat(4);
     try std.testing.expectEqual(16, d.pow(2).data[0]);
     try std.testing.expectEqual(64, d.pow(3).data[0]);
 }
 
-test "Scalar add/sub bare number on dimensionless scalar" {
+test "TensorStatic | Scalar add/sub bare number on dimensionless scalar" {
     const DimLess = TensorStatic(i128, .{}, .{}, &.{1});
     const a = DimLess.splat(10);
     try std.testing.expectEqual(15, a.add(DimLess.splat(5)).data[0]);
     try std.testing.expectEqual(7, a.sub(DimLess.splat(3)).data[0]);
 }
 
-test "Scalar Imperial length scales" {
+test "TensorStatic | Scalar Imperial length scales" {
     const Foot = TensorStatic(f64, .{ .L = 1 }, .{ .L = .ft }, &.{1});
     const Meter = TensorStatic(f64, .{ .L = 1 }, .{}, &.{1});
     const Inch = TensorStatic(f64, .{ .L = 1 }, .{ .L = .inch }, &.{1});
@@ -923,7 +923,7 @@ test "Scalar Imperial length scales" {
     try std.testing.expectApproxEqAbs(1.0, Inch.splat(12.0).to(Foot).data[0], 1e-9);
 }
 
-test "Scalar Imperial mass scales" {
+test "TensorStatic | Scalar Imperial mass scales" {
     const Pound = TensorStatic(f64, .{ .M = 1 }, .{ .M = .lb }, &.{1});
     const Ounce = TensorStatic(f64, .{ .M = 1 }, .{ .M = .oz }, &.{1});
 
@@ -933,14 +933,14 @@ test "Scalar Imperial mass scales" {
 
 // ─── Vector / Tensor tests ────────────────────────────────────────────────
 
-test "Vector initiate" {
+test "TensorStatic | Vector initiate" {
     const Meter4 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{4});
     const m = Meter4.splat(1);
     try std.testing.expect(m.data[0] == 1);
     try std.testing.expect(m.data[3] == 1);
 }
 
-test "Vector format" {
+test "TensorStatic | Vector format" {
     const MeterPerSecondSq = TensorStatic(f32, .{ .L = 1, .T = -2 }, .{ .T = .n }, &.{3});
     const KgMeterPerSecond = TensorStatic(f32, .{ .M = 1, .L = 1, .T = -1 }, .{ .M = .k }, &.{3});
 
@@ -955,7 +955,7 @@ test "Vector format" {
     try std.testing.expectEqualStrings("(43.00, 0.00, 11.00)m.kg.s⁻¹", res);
 }
 
-test "Vector Vec3 Init and Basic Arithmetic" {
+test "TensorStatic | Vector Vec3 Init and Basic Arithmetic" {
     const Meter3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
 
     const v_zero = Meter3.zero;
@@ -987,7 +987,7 @@ test "Vector Vec3 Init and Basic Arithmetic" {
     try std.testing.expectEqual(-30, neg.data[2]);
 }
 
-test "Vector Kinematics (scalar mul/div broadcast)" {
+test "TensorStatic | Vector Kinematics (scalar mul/div broadcast)" {
     const Meter3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
     const Second1 = TensorStatic(i32, .{ .T = 1 }, .{}, &.{1});
 
@@ -1006,7 +1006,7 @@ test "Vector Kinematics (scalar mul/div broadcast)" {
     try std.testing.expectEqual(0, @TypeOf(new_pos).dims.get(.T));
 }
 
-test "Vector Element-wise Math and Scaling" {
+test "TensorStatic | Vector Element-wise Math and Scaling" {
     const Meter3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
 
     const v1 = Meter3{ .data = .{ 10, 20, 30 } };
@@ -1018,7 +1018,7 @@ test "Vector Element-wise Math and Scaling" {
     try std.testing.expectEqual(0, @TypeOf(dv).dims.get(.L));
 }
 
-test "Vector Conversions" {
+test "TensorStatic | Vector Conversions" {
     const KiloMeter3 = TensorStatic(i32, .{ .L = 1 }, .{ .L = .k }, &.{3});
     const Meter3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
 
@@ -1030,7 +1030,7 @@ test "Vector Conversions" {
     try std.testing.expectEqual(UnitScale.none, @TypeOf(v_m).scales.get(.L));
 }
 
-test "Vector Length" {
+test "TensorStatic | Vector Length" {
     const MeterInt3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
     const MeterFloat3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
 
@@ -1043,7 +1043,7 @@ test "Vector Length" {
     try std.testing.expectApproxEqAbs(@as(f32, 5.0), v_float.length(), 1e-4);
 }
 
-test "Vector Comparisons" {
+test "TensorStatic | Vector Comparisons" {
     const Meter3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
     const KiloMeter3 = TensorStatic(f32, .{ .L = 1 }, .{ .L = .k }, &.{3});
 
@@ -1068,7 +1068,7 @@ test "Vector Comparisons" {
     try std.testing.expect(low_eq[0] and low_eq[1] and low_eq[2]);
 }
 
-test "Vector vs Scalar broadcast comparison" {
+test "TensorStatic | Vector vs Scalar broadcast comparison" {
     const Meter3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
     const KiloMeter1 = TensorStatic(f32, .{ .L = 1 }, .{ .L = .k }, &.{1});
 
@@ -1086,7 +1086,7 @@ test "Vector vs Scalar broadcast comparison" {
     try std.testing.expect(exact[1] == false);
 }
 
-test "Vector contract — dot product (rank-1 * rank-1)" {
+test "TensorStatic | Vector contract — dot product (rank-1 * rank-1)" {
     const Meter3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
     const Newton3 = TensorStatic(f32, .{ .M = 1, .L = 1, .T = -2 }, .{}, &.{3});
 
@@ -1100,7 +1100,7 @@ test "Vector contract — dot product (rank-1 * rank-1)" {
     try std.testing.expectEqual(-2, @TypeOf(work).dims.get(.T));
 }
 
-test "Vector contract — matrix multiply (rank-2 * rank-2)" {
+test "TensorStatic | Vector contract — matrix multiply (rank-2 * rank-2)" {
     const A = TensorStatic(f32, .{}, .{}, &.{ 2, 3 });
     const B = TensorStatic(f32, .{}, .{}, &.{ 3, 2 });
 
@@ -1114,7 +1114,7 @@ test "Vector contract — matrix multiply (rank-2 * rank-2)" {
     try std.testing.expectEqual(154, c.data[TensorStatic(f32, .{}, .{}, &.{ 2, 2 }).idx(.{ 1, 1 })]);
 }
 
-test "Vector Abs, Pow, Sqrt and Product" {
+test "TensorStatic | Vector Abs, Pow, Sqrt and Product" {
     const Meter3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
 
     const v1 = Meter3{ .data = .{ -2.0, 3.0, -4.0 } };
@@ -1137,7 +1137,7 @@ test "Vector Abs, Pow, Sqrt and Product" {
     try std.testing.expectEqual(1, @TypeOf(sqrted).dims.get(.L));
 }
 
-test "Vector eq broadcast on dimensionless" {
+test "TensorStatic | Vector eq broadcast on dimensionless" {
     const DimLess3 = TensorStatic(i32, .{}, .{}, &.{3});
     const v = DimLess3{ .data = .{ 1, 2, 3 } };
 
@@ -1147,7 +1147,7 @@ test "Vector eq broadcast on dimensionless" {
     try std.testing.expectEqual(false, eq_res[2]);
 }
 
-test "Tensor idx helper and matrix access" {
+test "TensorStatic | Tensor idx helper and matrix access" {
     const Mat3x3 = TensorStatic(f32, .{}, .{}, &.{ 3, 3 });
     var m: Mat3x3 = Mat3x3.zero;
     m.data[Mat3x3.idx(.{ 0, 0 })] = 1.0;
@@ -1160,7 +1160,7 @@ test "Tensor idx helper and matrix access" {
     try std.testing.expectEqual(0.0, m.data[1]);
 }
 
-test "Tensor strides_arr correctness" {
+test "TensorStatic | Tensor strides_arr correctness" {
     const T1 = TensorStatic(f32, .{}, .{}, &.{3});
     const T2 = TensorStatic(f32, .{}, .{}, &.{ 3, 4 });
     const T3 = TensorStatic(f32, .{}, .{}, &.{ 2, 3, 4 });
@@ -1173,7 +1173,7 @@ test "Tensor strides_arr correctness" {
     try std.testing.expectEqual(1, T3.strides_arr[2]);
 }
 
-test "Slice 1D basic" {
+test "TensorStatic | Slice 1D basic" {
     const Vec = TensorStatic(i32, .{}, .{}, &.{5});
     var v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .start = 1, .end = 4 }});
@@ -1183,7 +1183,7 @@ test "Slice 1D basic" {
     try std.testing.expectEqual(40, s.data[2]);
 }
 
-test "Slice 1D full range" {
+test "TensorStatic | Slice 1D full range" {
     const Vec = TensorStatic(f32, .{}, .{}, &.{4});
     const v = Vec{ .data = .{ 1.0, 2.0, 3.0, 4.0 } };
     const s = v.slice(.{.{ .start = 0, .end = 4 }});
@@ -1191,7 +1191,7 @@ test "Slice 1D full range" {
     inline for (0..4) |i| try std.testing.expectEqual(v.data[i], s.data[i]);
 }
 
-test "Slice 1D single element" {
+test "TensorStatic | Slice 1D single element" {
     const Vec = TensorStatic(i64, .{}, .{}, &.{6});
     const v = Vec{ .data = .{ 5, 10, 15, 20, 25, 30 } };
     const s = v.slice(.{.{ .start = 3, .end = 4 }});
@@ -1199,7 +1199,7 @@ test "Slice 1D single element" {
     try std.testing.expectEqual(20, s.data[0]);
 }
 
-test "Slice 1D preserves dims and scales" {
+test "TensorStatic | Slice 1D preserves dims and scales" {
     const Meter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{5});
     const v = Meter{ .data = .{ 1, 2, 3, 4, 5 } };
     const s = v.slice(.{.{ .start = 0, .end = 3 }});
@@ -1208,7 +1208,7 @@ test "Slice 1D preserves dims and scales" {
     try std.testing.expectEqual(Meter.scales.get(.L), S.scales.get(.L));
 }
 
-test "Slice 2D rows" {
+test "TensorStatic | Slice 2D rows" {
     const Mat = TensorStatic(i32, .{}, .{}, &.{ 4, 3 });
     const m = Mat{ .data = .{
         1,  2,  3,
@@ -1227,7 +1227,7 @@ test "Slice 2D rows" {
     try std.testing.expectEqual(9, s.data[5]);
 }
 
-test "Slice 2D cols" {
+test "TensorStatic | Slice 2D cols" {
     const Mat = TensorStatic(i32, .{}, .{}, &.{ 3, 4 });
     const m = Mat{ .data = .{
         1, 2,  3,  4,
@@ -1247,7 +1247,7 @@ test "Slice 2D cols" {
     try std.testing.expectEqual(11, s.data[5]);
 }
 
-test "Slice 2D subblock" {
+test "TensorStatic | Slice 2D subblock" {
     const Mat = TensorStatic(f64, .{}, .{}, &.{ 4, 4 });
     const m = Mat{ .data = .{
         1,  2,  3,  4,
@@ -1264,7 +1264,7 @@ test "Slice 2D subblock" {
     try std.testing.expectApproxEqAbs(11.0, s.data[3], 1e-9);
 }
 
-test "Slice then add" {
+test "TensorStatic | Slice then add" {
     const Meter = TensorStatic(i32, .{ .L = 1 }, .{}, &.{5});
     const a = Meter{ .data = .{ 1, 2, 3, 4, 5 } };
     const b = Meter{ .data = .{ 10, 20, 30, 40, 50 } };
@@ -1276,7 +1276,7 @@ test "Slice then add" {
     try std.testing.expectEqual(53, r.data[2]); // 3+50
 }
 
-test "Slice then scale convert" {
+test "TensorStatic | Slice then scale convert" {
     const KiloMeter = TensorStatic(i64, .{ .L = 1 }, .{ .L = .k }, &.{4});
     const Meter = TensorStatic(i64, .{ .L = 1 }, .{}, &.{2});
     const v = KiloMeter{ .data = .{ 1, 2, 3, 4 } };
@@ -1286,7 +1286,7 @@ test "Slice then scale convert" {
     try std.testing.expectEqual(3000, converted.data[1]);
 }
 
-test "Slice 1D negative start" {
+test "TensorStatic | Slice 1D negative start" {
     const Vec = TensorStatic(i32, .{}, .{}, &.{5});
     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .start = -3, .end = 5 }}); // [2,5) → 30,40,50
@@ -1296,7 +1296,7 @@ test "Slice 1D negative start" {
     try std.testing.expectEqual(50, s.data[2]);
 }
 
-test "Slice 1D negative end" {
+test "TensorStatic | Slice 1D negative end" {
     const Vec = TensorStatic(i32, .{}, .{}, &.{5});
     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .start = 1, .end = -1 }}); // [1,4) → 20,30,40
@@ -1306,7 +1306,7 @@ test "Slice 1D negative end" {
     try std.testing.expectEqual(40, s.data[2]);
 }
 
-test "Slice 1D both negative" {
+test "TensorStatic | Slice 1D both negative" {
     const Vec = TensorStatic(i64, .{}, .{}, &.{6});
     const v = Vec{ .data = .{ 5, 10, 15, 20, 25, 30 } };
     const s = v.slice(.{.{ .start = -4, .end = -1 }}); // [2,5) → 15,20,25
@@ -1316,7 +1316,7 @@ test "Slice 1D both negative" {
     try std.testing.expectEqual(25, s.data[2]);
 }
 
-test "Slice 1D null start" {
+test "TensorStatic | Slice 1D null start" {
     const Vec = TensorStatic(i32, .{}, .{}, &.{5});
     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .end = -2 }}); // [:-2] → 10,20,30
@@ -1326,7 +1326,7 @@ test "Slice 1D null start" {
     try std.testing.expectEqual(30, s.data[2]);
 }
 
-test "Slice 1D null end" {
+test "TensorStatic | Slice 1D null end" {
     const Vec = TensorStatic(i32, .{}, .{}, &.{5});
     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .start = -3 }}); // [-3:] → 30,40,50
@@ -1336,7 +1336,7 @@ test "Slice 1D null end" {
     try std.testing.expectEqual(50, s.data[2]);
 }
 
-test "Slice 2D negative & null indices" {
+test "TensorStatic | Slice 2D negative & null indices" {
     const Mat = TensorStatic(i32, .{}, .{}, &.{ 4, 4 });
     const m = Mat{ .data = .{
         1,  2,  3,  4,

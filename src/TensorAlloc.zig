@@ -3,6 +3,7 @@ const Scales = @import("Scales.zig");
 const UnitScale = Scales.UnitScale;
 const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
+const Allocator = std.mem.Allocator;
 const sh = @import("shared.zig");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,11 +51,11 @@ pub fn TensorAlloc(
 
         // Specific to Alloc
 
-        pub fn init(allocator: std.mem.Allocator) !@This() {
+        pub fn init(allocator: Allocator) !@This() {
             return .{ .data = try allocator.create(Vec) };
         }
 
-        pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+        pub fn deinit(self: @This(), allocator: Allocator) void {
             allocator.destroy(self.data);
         }
 
@@ -72,7 +73,7 @@ pub fn TensorAlloc(
         }
 
         /// Broadcast a single value across all elements.
-        pub inline fn splat(alloc: std.mem.Allocator, v: T) !Self {
+        pub inline fn splat(alloc: Allocator, v: T) !Self {
             const new = try @This().init(alloc);
             new.data.* = @splat(v);
             return new;
@@ -88,7 +89,7 @@ pub fn TensorAlloc(
 
         /// Element-wise add.  Dimensions must match; scales resolve to finer.
         /// RHS must have the same shape as self, or total == 1 (broadcast).
-        pub inline fn add(self: *const Self, rhs: anytype) TensorAlloc(
+        pub inline fn add(self: *const Self, alloc: Allocator, rhs: anytype) !TensorAlloc(
             T,
             dims.argsOpt(),
             sh.finerScales(Self, @TypeOf(rhs)).argsOpt(),
@@ -102,10 +103,16 @@ pub fn TensorAlloc(
             if (comptime RhsType.total != 1 and !sh.shapeEql(shape, RhsType.shape))
                 @compileError("Shape mismatch in add: element-wise operations require identical shapes, or a scalar RHS.");
 
+            var area = std.heap.ArenaAllocator.init(alloc);
+            defer area.deinit();
+
             const TargetType = TensorAlloc(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
-            const l: Vec = self.to(TargetType).data;
-            const r: Vec = rhs.to(TargetType).data;
-            return .{ .data = if (comptime sh.isInt(T)) l +| r else l + r };
+            const l: TargetType = try self.to(area.allocator(), TargetType);
+            const r: TargetType = try rhs.to(area.allocator(), TargetType);
+
+            const new = try TargetType.init(alloc);
+            new.data.* = if (comptime sh.isInt(T)) l.data.* +| r.data.* else l.data.* + r.data.*;
+            return new;
         }
 
         /// Element-wise sub.  Dimensions must match; scales resolve to finer.
@@ -226,8 +233,9 @@ pub fn TensorAlloc(
         ///   • Scale ratio is computed fully at comptime; only a SIMD multiply at runtime.
         pub inline fn to(
             self: *const Self,
+            alloc: Allocator,
             comptime Dest: type,
-        ) Dest {
+        ) !Dest {
             if (comptime Self == Dest) return self.*;
 
             // Run validation checks FIRST before dealing with types
@@ -236,74 +244,85 @@ pub fn TensorAlloc(
             if (comptime total != 1 and !sh.shapeEql(shape, Dest.shape))
                 @compileError("Shape mismatch in to: destination type must have the identical shape, or be a scalar.");
 
-            const vec = if (comptime total == 1 and Dest.total != 1)
-                TensorAlloc(Dest.ValueType, dims.argsOpt(), scales.argsOpt(), Dest.shape){ .data = @splat(self.data[0]) }
-            else
-                self;
-
             const ratio = comptime (scales.getFactor(dims) / Dest.scales.getFactor(Dest.dims));
             const DestT = Dest.ValueType;
             const DestVec = @Vector(Dest.total, DestT);
+            const T_info = @typeInfo(T);
+            const Dest_info = @typeInfo(DestT);
 
-            if (comptime ratio == 1.0 and T == DestT)
-                return .{ .data = vec.data };
+            const vec = try TensorAlloc(Dest.ValueType, dims.argsOpt(), scales.argsOpt(), Dest.shape).splat(
+                alloc,
+                if (comptime T_info == .int and Dest_info == .int)
+                    @as(DestT, @intCast(self.data[0]))
+                else if (comptime T_info == .float and Dest_info == .float)
+                    @as(DestT, @floatCast(self.data[0]))
+                else if (comptime T_info == .int and Dest_info == .float)
+                    @as(DestT, @floatFromInt(self.data[0]))
+                else if (comptime T_info == .float and Dest_info == .int)
+                    @as(DestT, @intFromFloat(self.data[0]))
+                else
+                    unreachable,
+            );
+            if (comptime total != 1 and total == Dest.total)
+                vec.data.* = if (comptime T_info == .int and Dest_info == .int)
+                    @as(DestVec, @intCast(self.data.*))
+                else if (comptime T_info == .float and Dest_info == .float)
+                    @as(DestVec, @floatCast(self.data.*))
+                else if (comptime T_info == .int and Dest_info == .float)
+                    @as(DestVec, @floatFromInt(self.data.*))
+                else if (comptime T_info == .float and Dest_info == .int)
+                    @as(DestVec, @intFromFloat(self.data.*))
+                else
+                    unreachable;
+            defer vec.deinit(alloc);
 
-            // If ratio is 1, handle type conversion correctly based on BOTH source and dest types
-            if (comptime ratio == 1.0) {
-                const T_info = @typeInfo(T);
-                const Dest_info = @typeInfo(DestT);
+            const new = try Dest.init(alloc);
 
-                return .{
-                    .data = if (comptime T_info == .int and Dest_info == .int)
-                        @as(DestVec, @intCast(vec.data))
-                    else if (comptime T_info == .float and Dest_info == .float)
-                        @as(DestVec, @floatCast(vec.data))
-                    else if (comptime T_info == .int and Dest_info == .float)
-                        @as(DestVec, @floatFromInt(vec.data))
-                    else if (comptime T_info == .float and Dest_info == .int)
-                        @as(DestVec, @intFromFloat(vec.data))
-                    else
-                        unreachable,
-                };
-            }
+            if (comptime ratio == 1.0)
+                return new;
 
             if (comptime T == DestT) {
-                if (comptime @typeInfo(T) == .float)
-                    return .{ .data = vec.data * @as(DestVec, @splat(@as(T, @floatCast(ratio)))) };
+                if (comptime @typeInfo(T) == .float) {
+                    new.data.* = vec.data.* * @as(DestVec, @splat(@as(T, @floatCast(ratio))));
+                    return new;
+                }
 
                 if (comptime ratio >= 1.0) {
                     const mult: T = comptime @intFromFloat(@round(ratio));
-                    return .{ .data = vec.data *| @as(Vec, @splat(mult)) };
+                    new.data.* = vec.data.* *| @as(Vec, @splat(mult));
                 } else {
                     const div_val: T = comptime @intFromFloat(@round(1.0 / ratio));
                     const half: T = comptime @divTrunc(div_val, 2);
 
                     if (comptime @typeInfo(T).int.signedness == .unsigned) {
-                        return .{ .data = @divTrunc(vec.data + @as(Vec, @splat(half)), @as(Vec, @splat(div_val))) };
+                        new.data.* = @divTrunc(vec.data.* + @as(Vec, @splat(half)), @as(Vec, @splat(div_val)));
                     } else {
-                        // Vectorized branchless negative handling
-                        const is_pos = self.data >= @as(Vec, @splat(0));
+                        const is_pos = self.data.* >= @as(Vec, @splat(0));
                         const offsets = @select(T, is_pos, @as(Vec, @splat(half)), @as(Vec, @splat(-half)));
-                        return .{ .data = @divTrunc(vec.data + offsets, @as(Vec, @splat(div_val))) };
+                        new.data.* = @divTrunc(vec.data.* + offsets, @as(Vec, @splat(div_val)));
                     }
                 }
+
+                return new;
             }
 
             // Cross-type fully vectorized casting with scales
             const FVec = @Vector(total, f64);
             const float_vec: FVec = switch (comptime @typeInfo(T)) {
-                .float => @floatCast(vec.data),
-                .int => @floatFromInt(vec.data),
+                .float => @floatCast(vec.data.*),
+                .int => @floatFromInt(vec.data.*),
                 else => unreachable,
             };
 
             const scaled = float_vec * @as(FVec, @splat(ratio));
 
-            return switch (comptime @typeInfo(DestT)) {
-                .float => .{ .data = @floatCast(scaled) },
-                .int => .{ .data = @intFromFloat(@round(scaled)) },
+            new.data.* = switch (comptime @typeInfo(DestT)) {
+                .float => @floatCast(scaled),
+                .int => @intFromFloat(@round(scaled)),
                 else => unreachable,
             };
+
+            return new;
         }
 
         const CmpResult = if (total == 1) bool else [total]bool;
@@ -313,7 +332,7 @@ pub fn TensorAlloc(
         }
 
         /// Resolve both sides to the finer scale, broadcasting shape {1} RHS if needed.
-        inline fn resolveScalePair(self: *const Self, rhs: anytype) struct { l: Vec, r: Vec } {
+        inline fn resolveScalePair(self: *const Self, rhs: anytype) struct { l: *Vec, r: *Vec } {
             const RhsType = @TypeOf(rhs);
             if (comptime !isTensor(RhsType))
                 @compileError("rhs can only be a Tensor ");
@@ -622,28 +641,32 @@ pub fn TensorAlloc(
 
 // ─── Scalar tests ─────────────────────────────────────────────────────────
 
-test "Scalar initiat" {
-    const alloc = std.testing.allocator;
+test "TensorAlloc  | Scalar initiat" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
 
     const Meter = TensorAlloc(i128, .{ .L = 1 }, .{ .L = @enumFromInt(-3) }, &.{1});
     const Second = TensorAlloc(f32, .{ .T = 1 }, .{ .T = .n }, &.{1});
 
     const distance = try Meter.splat(alloc, 10);
-    defer distance.deinit(alloc);
     const time = try Second.splat(alloc, 2);
-    defer time.deinit(alloc);
 
     try std.testing.expectEqual(10, distance.data[0]);
     try std.testing.expectEqual(2, time.data[0]);
 }
 
-// test "Scalar comparisons (eq, ne, gt, gte, lt, lte)" {
+// test "TensorAlloc  | Scalar comparisons (eq, ne, gt, gte, lt, lte)" {
+//     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+//     defer arena.deinit();
+//     const alloc = arena.allocator();
+//
 //     const Meter = TensorAlloc(i128, .{ .L = 1 }, .{}, &.{1});
 //     const KiloMeter = TensorAlloc(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
 //
-//     const m1000 = Meter.splat(1000);
-//     const km1 = KiloMeter.splat(1);
-//     const km2 = KiloMeter.splat(2);
+//     const m1000 = try Meter.splat(alloc, 1000);
+//     const km1 = try KiloMeter.splat(alloc, 1);
+//     const km2 = try KiloMeter.splat(alloc, 2);
 //
 //     try std.testing.expect(m1000.eq(km1));
 //     try std.testing.expect(km1.eq(m1000));
@@ -659,30 +682,34 @@ test "Scalar initiat" {
 //     try std.testing.expect(km1.lte(m1000));
 //     try std.testing.expect(m1000.lte(km2));
 // }
-//
-// test "Scalar Add" {
-//     const Meter = TensorAlloc(i128, .{ .L = 1 }, .{}, &.{1});
-//     const KiloMeter = TensorAlloc(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
-//     const KiloMeter_f = TensorAlloc(f64, .{ .L = 1 }, .{ .L = .k }, &.{1});
-//
-//     const distance = Meter.splat(10);
-//     const distance2 = Meter.splat(20);
-//     const added = distance.add(distance2);
-//     try std.testing.expectEqual(30, added.data[0]);
-//     try std.testing.expectEqual(1, @TypeOf(added).dims.get(.L));
-//
-//     const distance3 = KiloMeter.splat(2);
-//     const added2 = distance.add(distance3);
-//     try std.testing.expectEqual(2010, added2.data[0]);
-//
-//     const added3 = distance3.add(distance).to(KiloMeter);
-//     try std.testing.expectEqual(2, added3.data[0]);
-//
-//     const distance4 = KiloMeter_f.splat(2);
-//     const added4 = distance4.add(distance).to(KiloMeter_f);
-//     try std.testing.expectApproxEqAbs(2.01, added4.data[0], 0.000001);
-// }
-//
+
+test "TensorAlloc  | Scalar Add" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const Meter = TensorAlloc(i128, .{ .L = 1 }, .{}, &.{1});
+    const KiloMeter = TensorAlloc(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const KiloMeter_f = TensorAlloc(f64, .{ .L = 1 }, .{ .L = .k }, &.{1});
+
+    const distance = try Meter.splat(alloc, 10);
+    const distance2 = try Meter.splat(alloc, 20);
+    const added = try distance.add(alloc, distance2);
+    try std.testing.expectEqual(30, added.data[0]);
+    try std.testing.expectEqual(1, @TypeOf(added).dims.get(.L));
+
+    const distance3 = try KiloMeter.splat(alloc, 2);
+    const added2 = try distance.add(alloc, distance3);
+    try std.testing.expectEqual(2010, added2.data[0]);
+
+    const added3 = try (try distance3.add(alloc, distance)).to(alloc, KiloMeter);
+    try std.testing.expectEqual(2, added3.data[0]);
+
+    const distance4 = try KiloMeter_f.splat(alloc, 2);
+    const added4 = try (try distance4.add(alloc, distance)).to(alloc, KiloMeter_f);
+    try std.testing.expectApproxEqAbs(2.01, added4.data[0], 0.000001);
+}
+
 // test "Scalar Sub" {
 //     const Meter = TensorAlloc(i128, .{ .L = 1 }, .{}, &.{1});
 //     const KiloMeter_f = TensorAlloc(f64, .{ .L = 1 }, .{ .L = .k }, &.{1});
@@ -1128,4 +1155,71 @@ test "Scalar initiat" {
 //     try std.testing.expectEqual(12, T3.strides_arr[0]);
 //     try std.testing.expectEqual(4, T3.strides_arr[1]);
 //     try std.testing.expectEqual(1, T3.strides_arr[2]);
+// }
+//
+// test "Slice 1D negative start" {
+//     const Vec = TensorStatic(i32, .{}, .{}, &.{5});
+//     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
+//     const s = v.slice(.{.{ .start = -3, .end = 5 }}); // [2,5) → 30,40,50
+//     try std.testing.expectEqual(3, @TypeOf(s).total);
+//     try std.testing.expectEqual(30, s.data[0]);
+//     try std.testing.expectEqual(40, s.data[1]);
+//     try std.testing.expectEqual(50, s.data[2]);
+// }
+//
+// test "Slice 1D negative end" {
+//     const Vec = TensorStatic(i32, .{}, .{}, &.{5});
+//     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
+//     const s = v.slice(.{.{ .start = 1, .end = -1 }}); // [1,4) → 20,30,40
+//     try std.testing.expectEqual(3, @TypeOf(s).total);
+//     try std.testing.expectEqual(20, s.data[0]);
+//     try std.testing.expectEqual(30, s.data[1]);
+//     try std.testing.expectEqual(40, s.data[2]);
+// }
+//
+// test "Slice 1D both negative" {
+//     const Vec = TensorStatic(i64, .{}, .{}, &.{6});
+//     const v = Vec{ .data = .{ 5, 10, 15, 20, 25, 30 } };
+//     const s = v.slice(.{.{ .start = -4, .end = -1 }}); // [2,5) → 15,20,25
+//     try std.testing.expectEqual(3, @TypeOf(s).total);
+//     try std.testing.expectEqual(15, s.data[0]);
+//     try std.testing.expectEqual(20, s.data[1]);
+//     try std.testing.expectEqual(25, s.data[2]);
+// }
+//
+// test "Slice 1D null start" {
+//     const Vec = TensorStatic(i32, .{}, .{}, &.{5});
+//     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
+//     const s = v.slice(.{.{ .end = -2 }}); // [:-2] → 10,20,30
+//     try std.testing.expectEqual(3, @TypeOf(s).total);
+//     try std.testing.expectEqual(10, s.data[0]);
+//     try std.testing.expectEqual(20, s.data[1]);
+//     try std.testing.expectEqual(30, s.data[2]);
+// }
+//
+// test "Slice 1D null end" {
+//     const Vec = TensorStatic(i32, .{}, .{}, &.{5});
+//     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
+//     const s = v.slice(.{.{ .start = -3 }}); // [-3:] → 30,40,50
+//     try std.testing.expectEqual(3, @TypeOf(s).total);
+//     try std.testing.expectEqual(30, s.data[0]);
+//     try std.testing.expectEqual(40, s.data[1]);
+//     try std.testing.expectEqual(50, s.data[2]);
+// }
+//
+// test "Slice 2D negative & null indices" {
+//     const Mat = TensorStatic(i32, .{}, .{}, &.{ 4, 4 });
+//     const m = Mat{ .data = .{
+//         1,  2,  3,  4,
+//         5,  6,  7,  8,
+//         9,  10, 11, 12,
+//         13, 14, 15, 16,
+//     } };
+//     // last 2 rows, last 2 cols → same as subblock test [2,4)x[2,4)
+//     const s = m.slice(.{ .{ .start = -2, .end = 4 }, .{ .start = -2 } });
+//     try std.testing.expectEqual(4, @TypeOf(s).total);
+//     try std.testing.expectEqual(11, s.data[0]);
+//     try std.testing.expectEqual(12, s.data[1]);
+//     try std.testing.expectEqual(15, s.data[2]);
+//     try std.testing.expectEqual(16, s.data[3]);
 // }

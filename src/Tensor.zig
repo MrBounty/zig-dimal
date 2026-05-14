@@ -5,7 +5,7 @@ const Dimensions = @import("Dimensions.zig");
 const Dimension = Dimensions.Dimension;
 const sh = @import("shared.zig");
 
-pub fn TensorStatic(
+pub fn Tensor(
     comptime T: type,
     comptime d_opt: Dimensions.ArgOpts,
     comptime s_opt: Scales.ArgOpts,
@@ -69,7 +69,7 @@ pub fn TensorStatic(
 
         /// Element-wise add. Dimensions must match; scales resolve to finer.
         /// RHS must have the same shape as self, or total == 1 (broadcast).
-        pub inline fn add(self: *const Self, rhs: anytype) TensorStatic(
+        pub inline fn add(self: *const Self, rhs: anytype) Tensor(
             T,
             dims.argsOpt(),
             sh.finerScales(Self, @TypeOf(rhs)).argsOpt(),
@@ -83,7 +83,7 @@ pub fn TensorStatic(
             if (comptime RhsType.total != 1 and !sh.shapeEql(shape, RhsType.shape))
                 @compileError("Shape mismatch in add: element-wise operations require identical shapes, or a scalar RHS.");
 
-            const TargetType = TensorStatic(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
+            const TargetType = Tensor(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
             const l: Vec = self.to(TargetType).data;
             const r: Vec = rhs.to(TargetType).data;
             return .{ .data = if (comptime sh.isInt(T)) l +| r else l + r };
@@ -91,7 +91,7 @@ pub fn TensorStatic(
 
         /// Element-wise sub. Dimensions must match; scales resolve to finer.
         /// RHS must have the same shape as self, or total == 1 (broadcast).
-        pub inline fn sub(self: *const Self, rhs: anytype) TensorStatic(
+        pub inline fn sub(self: *const Self, rhs: anytype) Tensor(
             T,
             dims.argsOpt(),
             sh.finerScales(Self, @TypeOf(rhs)).argsOpt(),
@@ -105,7 +105,7 @@ pub fn TensorStatic(
             if (comptime RhsType.total != 1 and !sh.shapeEql(shape, RhsType.shape))
                 @compileError("Shape mismatch in add: element-wise operations require identical shapes, or a scalar RHS.");
 
-            const TargetType = TensorStatic(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
+            const TargetType = Tensor(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
             const l: Vec = self.to(TargetType).data;
             const r: Vec = rhs.to(TargetType).data;
             return .{ .data = if (comptime sh.isInt(T)) l -| r else l - r };
@@ -113,7 +113,7 @@ pub fn TensorStatic(
 
         /// Element-wise multiply. Dimension exponents summed.
         /// Shape {1} RHS is automatically broadcast across all elements.
-        pub inline fn mul(self: *const Self, rhs: anytype) TensorStatic(
+        pub inline fn mul(self: *const Self, rhs: anytype) Tensor(
             T,
             dims.add(@TypeOf(rhs).dims).argsOpt(),
             sh.finerScales(Self, @TypeOf(rhs)).argsOpt(),
@@ -125,8 +125,8 @@ pub fn TensorStatic(
             if (comptime RhsType.total != 1 and !sh.shapeEql(shape, RhsType.shape))
                 @compileError("Shape mismatch in mul: element-wise operations require identical shapes, or a scalar RHS.");
 
-            const SelfNorm = TensorStatic(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
-            const RhsNorm = TensorStatic(T, RhsType.dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
+            const SelfNorm = Tensor(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
+            const RhsNorm = Tensor(T, RhsType.dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
             const l: Vec = self.to(SelfNorm).data;
             const r: Vec = rhs.to(RhsNorm).data;
             return .{ .data = if (comptime sh.isInt(T)) l *| r else l * r };
@@ -134,7 +134,7 @@ pub fn TensorStatic(
 
         /// Element-wise divide. Dimension exponents subtracted.
         /// Shape {1} RHS is automatically broadcast across all elements.
-        pub inline fn div(self: *const Self, rhs: anytype) TensorStatic(
+        pub inline fn div(self: *const Self, rhs: anytype) Tensor(
             T,
             dims.sub(@TypeOf(rhs).dims).argsOpt(),
             sh.finerScales(Self, @TypeOf(rhs)).argsOpt(),
@@ -146,8 +146,8 @@ pub fn TensorStatic(
             if (comptime RhsType.total != 1 and !sh.shapeEql(shape, RhsType.shape))
                 @compileError("Shape mismatch in div: element-wise operations require identical shapes, or a scalar RHS.");
 
-            const SelfNorm = TensorStatic(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
-            const RhsNorm = TensorStatic(T, RhsType.dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
+            const SelfNorm = Tensor(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
+            const RhsNorm = Tensor(T, RhsType.dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
             const l: Vec = self.to(SelfNorm).data;
             const r: Vec = rhs.to(RhsNorm).data;
             return .{ .data = if (comptime sh.isInt(T)) @divTrunc(l, r) else l / r };
@@ -159,7 +159,7 @@ pub fn TensorStatic(
         }
 
         /// Raise every element to a comptime integer exponent.
-        pub inline fn pow(self: *const Self, comptime exp: comptime_int) TensorStatic(
+        pub inline fn pow(self: *const Self, comptime exp: comptime_int) Tensor(
             T,
             dims.scale(exp).argsOpt(),
             scales.argsOpt(),
@@ -175,7 +175,7 @@ pub fn TensorStatic(
         }
 
         /// Square root of every element.  All dimension exponents must be even.
-        pub inline fn sqrt(self: *const Self) TensorStatic(
+        pub inline fn sqrt(self: *const Self) Tensor(
             T,
             dims.div(2).argsOpt(),
             scales.argsOpt(),
@@ -226,7 +226,7 @@ pub fn TensorStatic(
                 ns[i] = e - s;
             }
             const new_shape: [rank]comptime_int = ns;
-            break :blk TensorStatic(T, dims.argsOpt(), scales.argsOpt(), &new_shape);
+            break :blk Tensor(T, dims.argsOpt(), scales.argsOpt(), &new_shape);
         } {
             const new_shape: [rank]comptime_int = comptime blk: {
                 var ns: [rank]comptime_int = undefined;
@@ -240,7 +240,7 @@ pub fn TensorStatic(
                 }
                 break :blk ns;
             };
-            const ResultType = TensorStatic(T, dims.argsOpt(), scales.argsOpt(), &new_shape);
+            const ResultType = Tensor(T, dims.argsOpt(), scales.argsOpt(), &new_shape);
             const src: [total]T = self.data;
             var dst: [ResultType.total]T = undefined;
             for (0..ResultType.total) |flat| {
@@ -274,7 +274,7 @@ pub fn TensorStatic(
                 @compileError("Shape mismatch in to: destination type must have the identical shape, or be a scalar.");
 
             const vec = if (comptime total == 1 and Dest.total != 1)
-                TensorStatic(Dest.ValueType, dims.argsOpt(), scales.argsOpt(), Dest.shape){ .data = @splat(self.data[0]) }
+                Tensor(Dest.ValueType, dims.argsOpt(), scales.argsOpt(), Dest.shape){ .data = @splat(self.data[0]) }
             else
                 self;
 
@@ -357,7 +357,7 @@ pub fn TensorStatic(
             if (comptime RhsType.total != 1 and !sh.shapeEql(shape, RhsType.shape))
                 @compileError("Shape mismatch in comparison: element-wise operations require identical shapes, or a scalar RHS.");
 
-            const TargetType = TensorStatic(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
+            const TargetType = Tensor(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
             return .{ .l = self.to(TargetType).data, .r = rhs.to(TargetType).data };
         }
 
@@ -433,7 +433,7 @@ pub fn TensorStatic(
             const sb = sh.shapeRemoveAxis(RhsType.shape, axis_b);
             const rs_raw = sh.shapeCat(&sa, &sb);
             const rs: []const comptime_int = if (rs_raw.len == 0) &.{1} else &rs_raw;
-            break :blk TensorStatic(
+            break :blk Tensor(
                 T,
                 dims.add(RhsType.dims).argsOpt(),
                 sh.finerScales(Self, RhsType).argsOpt(),
@@ -448,15 +448,15 @@ pub fn TensorStatic(
             const rs_raw = comptime sh.shapeCat(&sa, &sb);
             const rs: []const comptime_int = comptime if (rs_raw.len == 0) &.{1} else &rs_raw;
 
-            const ResultType = TensorStatic(
+            const ResultType = Tensor(
                 T,
                 dims.add(RhsType.dims).argsOpt(),
                 sh.finerScales(Self, RhsType).argsOpt(),
                 rs,
             );
 
-            const SelfNorm = TensorStatic(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
-            const OtherNorm = TensorStatic(T, RhsType.dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), RhsType.shape);
+            const SelfNorm = Tensor(T, dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), shape);
+            const OtherNorm = Tensor(T, RhsType.dims.argsOpt(), sh.finerScales(Self, RhsType).argsOpt(), RhsType.shape);
 
             const a_data = if (comptime Self == SelfNorm) self.data else self.to(SelfNorm).data;
             const b_data = if (comptime RhsType == OtherNorm) rhs.data else rhs.to(OtherNorm).data;
@@ -540,7 +540,7 @@ pub fn TensorStatic(
 
         /// 3D Cross Product. Only defined for Rank-1 tensors of length 3.
         /// Result dimensions are the sum of input dimensions.
-        pub inline fn cross(self: *const Self, rhs: anytype) TensorStatic(
+        pub inline fn cross(self: *const Self, rhs: anytype) Tensor(
             T,
             dims.add(@TypeOf(rhs).dims).argsOpt(),
             sh.finerScales(Self, @TypeOf(rhs)).argsOpt(),
@@ -588,7 +588,7 @@ pub fn TensorStatic(
         }
 
         /// Product of all elements.  Result has shape {1}; dimension exponent * total.
-        pub inline fn product(self: *const Self) TensorStatic(
+        pub inline fn product(self: *const Self) Tensor(
             T,
             dims.scale(@as(comptime_int, total)).argsOpt(),
             scales.argsOpt(),
@@ -660,8 +660,8 @@ pub fn TensorStatic(
 // ─── Scalar tests ─────────────────────────────────────────────────────────
 
 test "TensorStatic | Scalar initiat" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{ .L = @enumFromInt(-3) }, &.{1});
-    const Second = TensorStatic(f32, .{ .T = 1 }, .{ .T = .n }, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{ .L = @enumFromInt(-3) }, &.{1});
+    const Second = Tensor(f32, .{ .T = 1 }, .{ .T = .n }, &.{1});
 
     const distance = Meter.splat(10);
     const time = Second.splat(2);
@@ -671,8 +671,8 @@ test "TensorStatic | Scalar initiat" {
 }
 
 test "TensorStatic | Scalar comparisons (eq, ne, gt, gte, lt, lte)" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
-    const KiloMeter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
+    const KiloMeter = Tensor(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
 
     const m1000 = Meter.splat(1000);
     const km1 = KiloMeter.splat(1);
@@ -694,9 +694,9 @@ test "TensorStatic | Scalar comparisons (eq, ne, gt, gte, lt, lte)" {
 }
 
 test "TensorStatic | Scalar Add" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
-    const KiloMeter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
-    const KiloMeter_f = TensorStatic(f64, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
+    const KiloMeter = Tensor(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const KiloMeter_f = Tensor(f64, .{ .L = 1 }, .{ .L = .k }, &.{1});
 
     const distance = Meter.splat(10);
     const distance2 = Meter.splat(20);
@@ -717,8 +717,8 @@ test "TensorStatic | Scalar Add" {
 }
 
 test "TensorStatic | Scalar Sub" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
-    const KiloMeter_f = TensorStatic(f64, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
+    const KiloMeter_f = Tensor(f64, .{ .L = 1 }, .{ .L = .k }, &.{1});
 
     const a = Meter.splat(500);
     const b = Meter.splat(200);
@@ -734,8 +734,8 @@ test "TensorStatic | Scalar Sub" {
 }
 
 test "TensorStatic | Scalar MulBy" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
-    const Second = TensorStatic(f32, .{ .T = 1 }, .{}, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
+    const Second = Tensor(f32, .{ .T = 1 }, .{}, &.{1});
 
     const d = Meter.splat(3);
     const t = Second.splat(4);
@@ -751,8 +751,8 @@ test "TensorStatic | Scalar MulBy" {
 }
 
 test "TensorStatic | Scalar MulBy with scale" {
-    const KiloMeter = TensorStatic(f32, .{ .L = 1 }, .{ .L = .k }, &.{1});
-    const KiloGram = TensorStatic(f32, .{ .M = 1 }, .{ .M = .k }, &.{1});
+    const KiloMeter = Tensor(f32, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const KiloGram = Tensor(f32, .{ .M = 1 }, .{ .M = .k }, &.{1});
 
     const dist = KiloMeter.splat(2.0);
     const mass = KiloGram.splat(3.0);
@@ -762,10 +762,10 @@ test "TensorStatic | Scalar MulBy with scale" {
 }
 
 test "TensorStatic | Scalar MulBy with type change" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
-    const Second = TensorStatic(f64, .{ .T = 1 }, .{}, &.{1});
-    const KmSec = TensorStatic(i64, .{ .L = 1, .T = 1 }, .{ .L = .k }, &.{1});
-    const KmSec_f = TensorStatic(f32, .{ .L = 1, .T = 1 }, .{ .L = .k }, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const Second = Tensor(f64, .{ .T = 1 }, .{}, &.{1});
+    const KmSec = Tensor(i64, .{ .L = 1, .T = 1 }, .{ .L = .k }, &.{1});
+    const KmSec_f = Tensor(f32, .{ .L = 1, .T = 1 }, .{ .L = .k }, &.{1});
 
     const d = Meter.splat(3);
     const t = Second.splat(4);
@@ -775,24 +775,24 @@ test "TensorStatic | Scalar MulBy with type change" {
 }
 
 test "TensorStatic | Scalar MulBy small" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .n }, &.{1});
-    const Second = TensorStatic(f32, .{ .T = 1 }, .{}, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{ .L = .n }, &.{1});
+    const Second = Tensor(f32, .{ .T = 1 }, .{}, &.{1});
     const d = Meter.splat(3);
     const t = Second.splat(4);
     try std.testing.expectEqual(12, d.mul(t).data[0]);
 }
 
 test "TensorStatic | Scalar MulBy dimensionless" {
-    const DimLess = TensorStatic(i128, .{}, .{}, &.{1});
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
+    const DimLess = Tensor(i128, .{}, .{}, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
     const d = Meter.splat(7);
     const scaled = d.mul(DimLess.splat(3));
     try std.testing.expectEqual(21, scaled.data[0]);
 }
 
 test "TensorStatic | Scalar Sqrt" {
-    const MeterSquare = TensorStatic(i128, .{ .L = 2 }, .{}, &.{1});
-    const MeterSquare_f = TensorStatic(f64, .{ .L = 2 }, .{}, &.{1});
+    const MeterSquare = Tensor(i128, .{ .L = 2 }, .{}, &.{1});
+    const MeterSquare_f = Tensor(f64, .{ .L = 2 }, .{}, &.{1});
 
     var d = MeterSquare.splat(9);
     var scaled = d.sqrt();
@@ -809,8 +809,8 @@ test "TensorStatic | Scalar Sqrt" {
 }
 
 test "TensorStatic | Scalar Chained: velocity and acceleration" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
-    const Second = TensorStatic(f32, .{ .T = 1 }, .{}, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
+    const Second = Tensor(f32, .{ .T = 1 }, .{}, &.{1});
 
     const dist = Meter.splat(100);
     const t1 = Second.splat(5);
@@ -823,8 +823,8 @@ test "TensorStatic | Scalar Chained: velocity and acceleration" {
 }
 
 test "TensorStatic | Scalar DivBy integer exact" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
-    const Second = TensorStatic(f32, .{ .T = 1 }, .{}, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
+    const Second = Tensor(f32, .{ .T = 1 }, .{}, &.{1});
 
     const dist = Meter.splat(120);
     const time = Second.splat(4);
@@ -833,8 +833,8 @@ test "TensorStatic | Scalar DivBy integer exact" {
 }
 
 test "TensorStatic | Scalar Finer scales skip dim 0" {
-    const Dimless = TensorStatic(i128, .{}, .{}, &.{1});
-    const KiloMetre = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const Dimless = Tensor(i128, .{}, .{}, &.{1});
+    const KiloMetre = Tensor(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
 
     const r = Dimless.splat(30);
     const km = KiloMetre.splat(4);
@@ -844,9 +844,9 @@ test "TensorStatic | Scalar Finer scales skip dim 0" {
 }
 
 test "TensorStatic | Scalar Conversion chain: km -> m -> cm" {
-    const KiloMeter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
-    const CentiMeter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .c }, &.{1});
+    const KiloMeter = Tensor(i128, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
+    const CentiMeter = Tensor(i128, .{ .L = 1 }, .{ .L = .c }, &.{1});
 
     const km = KiloMeter.splat(15);
     const m = km.to(Meter);
@@ -856,9 +856,9 @@ test "TensorStatic | Scalar Conversion chain: km -> m -> cm" {
 }
 
 test "TensorStatic | Scalar Conversion: hours -> minutes -> seconds" {
-    const Hour = TensorStatic(i128, .{ .T = 1 }, .{ .T = .hour }, &.{1});
-    const Minute = TensorStatic(i128, .{ .T = 1 }, .{ .T = .min }, &.{1});
-    const Second = TensorStatic(i128, .{ .T = 1 }, .{}, &.{1});
+    const Hour = Tensor(i128, .{ .T = 1 }, .{ .T = .hour }, &.{1});
+    const Minute = Tensor(i128, .{ .T = 1 }, .{ .T = .min }, &.{1});
+    const Second = Tensor(i128, .{ .T = 1 }, .{}, &.{1});
 
     const h = Hour.splat(1);
     const min = h.to(Minute);
@@ -868,8 +868,8 @@ test "TensorStatic | Scalar Conversion: hours -> minutes -> seconds" {
 }
 
 test "TensorStatic | Scalar Format" {
-    const MeterPerSecondSq = TensorStatic(f32, .{ .L = 1, .T = -2 }, .{ .T = .n }, &.{1});
-    const Meter = TensorStatic(f32, .{ .L = 1 }, .{}, &.{1});
+    const MeterPerSecondSq = Tensor(f32, .{ .L = 1, .T = -2 }, .{ .T = .n }, &.{1});
+    const Meter = Tensor(f32, .{ .L = 1 }, .{}, &.{1});
 
     const m = Meter.splat(1.23456);
     const accel = MeterPerSecondSq.splat(9.81);
@@ -883,39 +883,39 @@ test "TensorStatic | Scalar Format" {
 }
 
 test "TensorStatic | Scalar Abs" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
-    const MeterF = TensorStatic(f32, .{ .L = 1 }, .{}, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
+    const MeterF = Tensor(f32, .{ .L = 1 }, .{}, &.{1});
 
     try std.testing.expectEqual(50, Meter.splat(-50).abs().data[0]);
     try std.testing.expectEqual(42.5, MeterF.splat(-42.5).abs().data[0]);
 }
 
 test "TensorStatic | Scalar Pow" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{}, &.{1});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{}, &.{1});
     const d = Meter.splat(4);
     try std.testing.expectEqual(16, d.pow(2).data[0]);
     try std.testing.expectEqual(64, d.pow(3).data[0]);
 }
 
 test "TensorStatic | Scalar add/sub bare number on dimensionless scalar" {
-    const DimLess = TensorStatic(i128, .{}, .{}, &.{1});
+    const DimLess = Tensor(i128, .{}, .{}, &.{1});
     const a = DimLess.splat(10);
     try std.testing.expectEqual(15, a.add(DimLess.splat(5)).data[0]);
     try std.testing.expectEqual(7, a.sub(DimLess.splat(3)).data[0]);
 }
 
 test "TensorStatic | Scalar Imperial length scales" {
-    const Foot = TensorStatic(f64, .{ .L = 1 }, .{ .L = .ft }, &.{1});
-    const Meter = TensorStatic(f64, .{ .L = 1 }, .{}, &.{1});
-    const Inch = TensorStatic(f64, .{ .L = 1 }, .{ .L = .inch }, &.{1});
+    const Foot = Tensor(f64, .{ .L = 1 }, .{ .L = .ft }, &.{1});
+    const Meter = Tensor(f64, .{ .L = 1 }, .{}, &.{1});
+    const Inch = Tensor(f64, .{ .L = 1 }, .{ .L = .inch }, &.{1});
 
     try std.testing.expectApproxEqAbs(0.3048, Foot.splat(1.0).to(Meter).data[0], 1e-9);
     try std.testing.expectApproxEqAbs(1.0, Inch.splat(12.0).to(Foot).data[0], 1e-9);
 }
 
 test "TensorStatic | Scalar Imperial mass scales" {
-    const Pound = TensorStatic(f64, .{ .M = 1 }, .{ .M = .lb }, &.{1});
-    const Ounce = TensorStatic(f64, .{ .M = 1 }, .{ .M = .oz }, &.{1});
+    const Pound = Tensor(f64, .{ .M = 1 }, .{ .M = .lb }, &.{1});
+    const Ounce = Tensor(f64, .{ .M = 1 }, .{ .M = .oz }, &.{1});
 
     const total = Pound.splat(2.0).add(Ounce.splat(8.0)).to(Pound);
     try std.testing.expectApproxEqAbs(2.5, total.data[0], 1e-6);
@@ -924,15 +924,15 @@ test "TensorStatic | Scalar Imperial mass scales" {
 // ─── Vector / Tensor tests ────────────────────────────────────────────────
 
 test "TensorStatic | Vector initiate" {
-    const Meter4 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{4});
+    const Meter4 = Tensor(f32, .{ .L = 1 }, .{}, &.{4});
     const m = Meter4.splat(1);
     try std.testing.expect(m.data[0] == 1);
     try std.testing.expect(m.data[3] == 1);
 }
 
 test "TensorStatic | Vector format" {
-    const MeterPerSecondSq = TensorStatic(f32, .{ .L = 1, .T = -2 }, .{ .T = .n }, &.{3});
-    const KgMeterPerSecond = TensorStatic(f32, .{ .M = 1, .L = 1, .T = -1 }, .{ .M = .k }, &.{3});
+    const MeterPerSecondSq = Tensor(f32, .{ .L = 1, .T = -2 }, .{ .T = .n }, &.{3});
+    const KgMeterPerSecond = Tensor(f32, .{ .M = 1, .L = 1, .T = -1 }, .{ .M = .k }, &.{3});
 
     const accel = MeterPerSecondSq.splat(9.81);
     const momentum = KgMeterPerSecond{ .data = .{ 43, 0, 11 } };
@@ -946,7 +946,7 @@ test "TensorStatic | Vector format" {
 }
 
 test "TensorStatic | Vector Vec3 Init and Basic Arithmetic" {
-    const Meter3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
+    const Meter3 = Tensor(i32, .{ .L = 1 }, .{}, &.{3});
 
     const v_zero = Meter3.zero;
     try std.testing.expectEqual(0, v_zero.data[0]);
@@ -978,8 +978,8 @@ test "TensorStatic | Vector Vec3 Init and Basic Arithmetic" {
 }
 
 test "TensorStatic | Vector Kinematics (scalar mul/div broadcast)" {
-    const Meter3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
-    const Second1 = TensorStatic(i32, .{ .T = 1 }, .{}, &.{1});
+    const Meter3 = Tensor(i32, .{ .L = 1 }, .{}, &.{3});
+    const Second1 = Tensor(i32, .{ .T = 1 }, .{}, &.{1});
 
     const pos = Meter3{ .data = .{ 100, 200, 300 } };
     const time = Second1.splat(10);
@@ -997,7 +997,7 @@ test "TensorStatic | Vector Kinematics (scalar mul/div broadcast)" {
 }
 
 test "TensorStatic | Vector Element-wise Math and Scaling" {
-    const Meter3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
+    const Meter3 = Tensor(i32, .{ .L = 1 }, .{}, &.{3});
 
     const v1 = Meter3{ .data = .{ 10, 20, 30 } };
     const v2 = Meter3{ .data = .{ 2, 5, 10 } };
@@ -1009,8 +1009,8 @@ test "TensorStatic | Vector Element-wise Math and Scaling" {
 }
 
 test "TensorStatic | Vector Conversions" {
-    const KiloMeter3 = TensorStatic(i32, .{ .L = 1 }, .{ .L = .k }, &.{3});
-    const Meter3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
+    const KiloMeter3 = Tensor(i32, .{ .L = 1 }, .{ .L = .k }, &.{3});
+    const Meter3 = Tensor(i32, .{ .L = 1 }, .{}, &.{3});
 
     const v_km = KiloMeter3{ .data = .{ 1, 2, 3 } };
     const v_m = v_km.to(Meter3);
@@ -1021,8 +1021,8 @@ test "TensorStatic | Vector Conversions" {
 }
 
 test "TensorStatic | Vector Length" {
-    const MeterInt3 = TensorStatic(i32, .{ .L = 1 }, .{}, &.{3});
-    const MeterFloat3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
+    const MeterInt3 = Tensor(i32, .{ .L = 1 }, .{}, &.{3});
+    const MeterFloat3 = Tensor(f32, .{ .L = 1 }, .{}, &.{3});
 
     const v_int = MeterInt3{ .data = .{ 3, 4, 0 } };
     try std.testing.expectEqual(25, v_int.lengthSqr());
@@ -1034,8 +1034,8 @@ test "TensorStatic | Vector Length" {
 }
 
 test "TensorStatic | Vector Comparisons" {
-    const Meter3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
-    const KiloMeter3 = TensorStatic(f32, .{ .L = 1 }, .{ .L = .k }, &.{3});
+    const Meter3 = Tensor(f32, .{ .L = 1 }, .{}, &.{3});
+    const KiloMeter3 = Tensor(f32, .{ .L = 1 }, .{ .L = .k }, &.{3});
 
     const v1 = Meter3{ .data = .{ 1000.0, 500.0, 0.0 } };
     const v2 = KiloMeter3{ .data = .{ 1.0, 0.5, 0.0 } };
@@ -1059,8 +1059,8 @@ test "TensorStatic | Vector Comparisons" {
 }
 
 test "TensorStatic | Vector vs Scalar broadcast comparison" {
-    const Meter3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
-    const KiloMeter1 = TensorStatic(f32, .{ .L = 1 }, .{ .L = .k }, &.{1});
+    const Meter3 = Tensor(f32, .{ .L = 1 }, .{}, &.{3});
+    const KiloMeter1 = Tensor(f32, .{ .L = 1 }, .{ .L = .k }, &.{1});
 
     const positions = Meter3{ .data = .{ 500.0, 1200.0, 3000.0 } };
     const threshold = KiloMeter1.splat(1); // 1 km = 1000 m
@@ -1070,15 +1070,15 @@ test "TensorStatic | Vector vs Scalar broadcast comparison" {
     try std.testing.expectEqual(true, exceeded[1]);
     try std.testing.expectEqual(true, exceeded[2]);
 
-    const Meter1 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{1});
+    const Meter1 = Tensor(f32, .{ .L = 1 }, .{}, &.{1});
     const exact = positions.eq(Meter1.splat(500));
     try std.testing.expect(exact[0] == true);
     try std.testing.expect(exact[1] == false);
 }
 
 test "TensorStatic | Vector contract — dot product (rank-1 * rank-1)" {
-    const Meter3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
-    const Newton3 = TensorStatic(f32, .{ .M = 1, .L = 1, .T = -2 }, .{}, &.{3});
+    const Meter3 = Tensor(f32, .{ .L = 1 }, .{}, &.{3});
+    const Newton3 = Tensor(f32, .{ .M = 1, .L = 1, .T = -2 }, .{}, &.{3});
 
     const pos = Meter3{ .data = .{ 10.0, 0.0, 0.0 } };
     const force = Newton3{ .data = .{ 5.0, 5.0, 0.0 } };
@@ -1091,21 +1091,21 @@ test "TensorStatic | Vector contract — dot product (rank-1 * rank-1)" {
 }
 
 test "TensorStatic | Vector contract — matrix multiply (rank-2 * rank-2)" {
-    const A = TensorStatic(f32, .{}, .{}, &.{ 2, 3 });
-    const B = TensorStatic(f32, .{}, .{}, &.{ 3, 2 });
+    const A = Tensor(f32, .{}, .{}, &.{ 2, 3 });
+    const B = Tensor(f32, .{}, .{}, &.{ 3, 2 });
 
     const a = A{ .data = .{ 1, 2, 3, 4, 5, 6 } };
     const b = B{ .data = .{ 7, 8, 9, 10, 11, 12 } };
 
     const c = a.contract(b, 1, 0);
-    try std.testing.expectEqual(58, c.data[TensorStatic(f32, .{}, .{}, &.{ 2, 2 }).idx(.{ 0, 0 })]);
-    try std.testing.expectEqual(64, c.data[TensorStatic(f32, .{}, .{}, &.{ 2, 2 }).idx(.{ 0, 1 })]);
-    try std.testing.expectEqual(139, c.data[TensorStatic(f32, .{}, .{}, &.{ 2, 2 }).idx(.{ 1, 0 })]);
-    try std.testing.expectEqual(154, c.data[TensorStatic(f32, .{}, .{}, &.{ 2, 2 }).idx(.{ 1, 1 })]);
+    try std.testing.expectEqual(58, c.data[Tensor(f32, .{}, .{}, &.{ 2, 2 }).idx(.{ 0, 0 })]);
+    try std.testing.expectEqual(64, c.data[Tensor(f32, .{}, .{}, &.{ 2, 2 }).idx(.{ 0, 1 })]);
+    try std.testing.expectEqual(139, c.data[Tensor(f32, .{}, .{}, &.{ 2, 2 }).idx(.{ 1, 0 })]);
+    try std.testing.expectEqual(154, c.data[Tensor(f32, .{}, .{}, &.{ 2, 2 }).idx(.{ 1, 1 })]);
 }
 
 test "TensorStatic | Vector Abs, Pow, Sqrt and Product" {
-    const Meter3 = TensorStatic(f32, .{ .L = 1 }, .{}, &.{3});
+    const Meter3 = Tensor(f32, .{ .L = 1 }, .{}, &.{3});
 
     const v1 = Meter3{ .data = .{ -2.0, 3.0, -4.0 } };
     const v_abs = v1.abs();
@@ -1128,7 +1128,7 @@ test "TensorStatic | Vector Abs, Pow, Sqrt and Product" {
 }
 
 test "TensorStatic | Vector eq broadcast on dimensionless" {
-    const DimLess3 = TensorStatic(i32, .{}, .{}, &.{3});
+    const DimLess3 = Tensor(i32, .{}, .{}, &.{3});
     const v = DimLess3{ .data = .{ 1, 2, 3 } };
 
     const eq_res = v.eq(DimLess3.splat(2));
@@ -1138,7 +1138,7 @@ test "TensorStatic | Vector eq broadcast on dimensionless" {
 }
 
 test "TensorStatic | Tensor idx helper and matrix access" {
-    const Mat3x3 = TensorStatic(f32, .{}, .{}, &.{ 3, 3 });
+    const Mat3x3 = Tensor(f32, .{}, .{}, &.{ 3, 3 });
     var m: Mat3x3 = Mat3x3.zero;
     m.data[Mat3x3.idx(.{ 0, 0 })] = 1.0;
     m.data[Mat3x3.idx(.{ 1, 1 })] = 2.0;
@@ -1151,9 +1151,9 @@ test "TensorStatic | Tensor idx helper and matrix access" {
 }
 
 test "TensorStatic | Tensor strides_arr correctness" {
-    const T1 = TensorStatic(f32, .{}, .{}, &.{3});
-    const T2 = TensorStatic(f32, .{}, .{}, &.{ 3, 4 });
-    const T3 = TensorStatic(f32, .{}, .{}, &.{ 2, 3, 4 });
+    const T1 = Tensor(f32, .{}, .{}, &.{3});
+    const T2 = Tensor(f32, .{}, .{}, &.{ 3, 4 });
+    const T3 = Tensor(f32, .{}, .{}, &.{ 2, 3, 4 });
 
     try std.testing.expectEqual(1, T1.strides_arr[0]);
     try std.testing.expectEqual(4, T2.strides_arr[0]);
@@ -1164,7 +1164,7 @@ test "TensorStatic | Tensor strides_arr correctness" {
 }
 
 test "TensorStatic | Slice 1D basic" {
-    const Vec = TensorStatic(i32, .{}, .{}, &.{5});
+    const Vec = Tensor(i32, .{}, .{}, &.{5});
     var v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .start = 1, .end = 4 }});
     try std.testing.expectEqual(3, @TypeOf(s).total);
@@ -1174,7 +1174,7 @@ test "TensorStatic | Slice 1D basic" {
 }
 
 test "TensorStatic | Slice 1D full range" {
-    const Vec = TensorStatic(f32, .{}, .{}, &.{4});
+    const Vec = Tensor(f32, .{}, .{}, &.{4});
     const v = Vec{ .data = .{ 1.0, 2.0, 3.0, 4.0 } };
     const s = v.slice(.{.{ .start = 0, .end = 4 }});
     try std.testing.expectEqual(4, @TypeOf(s).total);
@@ -1182,7 +1182,7 @@ test "TensorStatic | Slice 1D full range" {
 }
 
 test "TensorStatic | Slice 1D single element" {
-    const Vec = TensorStatic(i64, .{}, .{}, &.{6});
+    const Vec = Tensor(i64, .{}, .{}, &.{6});
     const v = Vec{ .data = .{ 5, 10, 15, 20, 25, 30 } };
     const s = v.slice(.{.{ .start = 3, .end = 4 }});
     try std.testing.expectEqual(1, @TypeOf(s).total);
@@ -1190,7 +1190,7 @@ test "TensorStatic | Slice 1D single element" {
 }
 
 test "TensorStatic | Slice 1D preserves dims and scales" {
-    const Meter = TensorStatic(i128, .{ .L = 1 }, .{ .L = .k }, &.{5});
+    const Meter = Tensor(i128, .{ .L = 1 }, .{ .L = .k }, &.{5});
     const v = Meter{ .data = .{ 1, 2, 3, 4, 5 } };
     const s = v.slice(.{.{ .start = 0, .end = 3 }});
     const S = @TypeOf(s);
@@ -1199,7 +1199,7 @@ test "TensorStatic | Slice 1D preserves dims and scales" {
 }
 
 test "TensorStatic | Slice 2D rows" {
-    const Mat = TensorStatic(i32, .{}, .{}, &.{ 4, 3 });
+    const Mat = Tensor(i32, .{}, .{}, &.{ 4, 3 });
     const m = Mat{ .data = .{
         1,  2,  3,
         4,  5,  6,
@@ -1218,7 +1218,7 @@ test "TensorStatic | Slice 2D rows" {
 }
 
 test "TensorStatic | Slice 2D cols" {
-    const Mat = TensorStatic(i32, .{}, .{}, &.{ 3, 4 });
+    const Mat = Tensor(i32, .{}, .{}, &.{ 3, 4 });
     const m = Mat{ .data = .{
         1, 2,  3,  4,
         5, 6,  7,  8,
@@ -1238,7 +1238,7 @@ test "TensorStatic | Slice 2D cols" {
 }
 
 test "TensorStatic | Slice 2D subblock" {
-    const Mat = TensorStatic(f64, .{}, .{}, &.{ 4, 4 });
+    const Mat = Tensor(f64, .{}, .{}, &.{ 4, 4 });
     const m = Mat{ .data = .{
         1,  2,  3,  4,
         5,  6,  7,  8,
@@ -1255,7 +1255,7 @@ test "TensorStatic | Slice 2D subblock" {
 }
 
 test "TensorStatic | Slice then add" {
-    const Meter = TensorStatic(i32, .{ .L = 1 }, .{}, &.{5});
+    const Meter = Tensor(i32, .{ .L = 1 }, .{}, &.{5});
     const a = Meter{ .data = .{ 1, 2, 3, 4, 5 } };
     const b = Meter{ .data = .{ 10, 20, 30, 40, 50 } };
     const sa = a.slice(.{.{ .start = 0, .end = 3 }});
@@ -1267,8 +1267,8 @@ test "TensorStatic | Slice then add" {
 }
 
 test "TensorStatic | Slice then scale convert" {
-    const KiloMeter = TensorStatic(i64, .{ .L = 1 }, .{ .L = .k }, &.{4});
-    const Meter = TensorStatic(i64, .{ .L = 1 }, .{}, &.{2});
+    const KiloMeter = Tensor(i64, .{ .L = 1 }, .{ .L = .k }, &.{4});
+    const Meter = Tensor(i64, .{ .L = 1 }, .{}, &.{2});
     const v = KiloMeter{ .data = .{ 1, 2, 3, 4 } };
     const s = v.slice(.{.{ .start = 1, .end = 3 }}); // {2, 3} km
     const converted = s.to(Meter);
@@ -1277,7 +1277,7 @@ test "TensorStatic | Slice then scale convert" {
 }
 
 test "TensorStatic | Slice 1D negative start" {
-    const Vec = TensorStatic(i32, .{}, .{}, &.{5});
+    const Vec = Tensor(i32, .{}, .{}, &.{5});
     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .start = -3, .end = 5 }}); // [2,5) → 30,40,50
     try std.testing.expectEqual(3, @TypeOf(s).total);
@@ -1287,7 +1287,7 @@ test "TensorStatic | Slice 1D negative start" {
 }
 
 test "TensorStatic | Slice 1D negative end" {
-    const Vec = TensorStatic(i32, .{}, .{}, &.{5});
+    const Vec = Tensor(i32, .{}, .{}, &.{5});
     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .start = 1, .end = -1 }}); // [1,4) → 20,30,40
     try std.testing.expectEqual(3, @TypeOf(s).total);
@@ -1297,7 +1297,7 @@ test "TensorStatic | Slice 1D negative end" {
 }
 
 test "TensorStatic | Slice 1D both negative" {
-    const Vec = TensorStatic(i64, .{}, .{}, &.{6});
+    const Vec = Tensor(i64, .{}, .{}, &.{6});
     const v = Vec{ .data = .{ 5, 10, 15, 20, 25, 30 } };
     const s = v.slice(.{.{ .start = -4, .end = -1 }}); // [2,5) → 15,20,25
     try std.testing.expectEqual(3, @TypeOf(s).total);
@@ -1307,7 +1307,7 @@ test "TensorStatic | Slice 1D both negative" {
 }
 
 test "TensorStatic | Slice 1D null start" {
-    const Vec = TensorStatic(i32, .{}, .{}, &.{5});
+    const Vec = Tensor(i32, .{}, .{}, &.{5});
     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .end = -2 }}); // [:-2] → 10,20,30
     try std.testing.expectEqual(3, @TypeOf(s).total);
@@ -1317,7 +1317,7 @@ test "TensorStatic | Slice 1D null start" {
 }
 
 test "TensorStatic | Slice 1D null end" {
-    const Vec = TensorStatic(i32, .{}, .{}, &.{5});
+    const Vec = Tensor(i32, .{}, .{}, &.{5});
     const v = Vec{ .data = .{ 10, 20, 30, 40, 50 } };
     const s = v.slice(.{.{ .start = -3 }}); // [-3:] → 30,40,50
     try std.testing.expectEqual(3, @TypeOf(s).total);
@@ -1327,7 +1327,7 @@ test "TensorStatic | Slice 1D null end" {
 }
 
 test "TensorStatic | Slice 2D negative & null indices" {
-    const Mat = TensorStatic(i32, .{}, .{}, &.{ 4, 4 });
+    const Mat = Tensor(i32, .{}, .{}, &.{ 4, 4 });
     const m = Mat{ .data = .{
         1,  2,  3,  4,
         5,  6,  7,  8,
@@ -1341,4 +1341,83 @@ test "TensorStatic | Slice 2D negative & null indices" {
     try std.testing.expectEqual(12, s.data[1]);
     try std.testing.expectEqual(15, s.data[2]);
     try std.testing.expectEqual(16, s.data[3]);
+}
+
+test "TensorStatic | RLS heap basic" {
+    const allocator = std.testing.allocator;
+    const Meter = Tensor(f32, .{ .L = 1 }, .{}, &.{1});
+
+    const c = try allocator.create(Meter);
+    defer allocator.destroy(c);
+    c.* = Meter.splat(42.0);
+
+    try std.testing.expectEqual(42.0, c.data[0]);
+}
+
+test "TensorStatic | RLS heap add vec3" {
+    const allocator = std.testing.allocator;
+    const Meter = Tensor(f32, .{ .L = 1 }, .{}, &.{3});
+
+    const a = Meter{ .data = .{ 1.0, 2.0, 3.0 } };
+    const b = Meter{ .data = .{ 10.0, 20.0, 30.0 } };
+
+    const c = try allocator.create(@TypeOf(a.add(b)));
+    defer allocator.destroy(c);
+    c.* = a.add(b); // RLS: direct into heap
+
+    try std.testing.expectEqual(11.0, c.data[0]);
+    try std.testing.expectEqual(22.0, c.data[1]);
+    try std.testing.expectEqual(33.0, c.data[2]);
+}
+
+test "TensorStatic | RLS heap cross-scale add" {
+    const allocator = std.testing.allocator;
+    const Meter = Tensor(i64, .{ .L = 1 }, .{}, &.{1});
+    const KiloMeter = Tensor(i64, .{ .L = 1 }, .{ .L = .k }, &.{1});
+
+    const c = try allocator.create(@TypeOf(Meter.splat(0).add(KiloMeter.splat(0))));
+    defer allocator.destroy(c);
+    c.* = Meter.splat(500).add(KiloMeter.splat(1)); // 500 + 1000 = 1500m
+
+    try std.testing.expectEqual(1500, c.data[0]);
+}
+
+test "TensorStatic | RLS heap matmul" {
+    const allocator = std.testing.allocator;
+    const A = Tensor(f32, .{}, .{}, &.{ 2, 3 });
+    const B = Tensor(f32, .{}, .{}, &.{ 3, 2 });
+
+    const a = A{ .data = .{ 1, 2, 3, 4, 5, 6 } };
+    const b = B{ .data = .{ 7, 8, 9, 10, 11, 12 } };
+
+    const c = try allocator.create(@TypeOf(a.contract(b, 1, 0)));
+    defer allocator.destroy(c);
+    c.* = a.contract(b, 1, 0); // RLS: direct into heap
+
+    const R = Tensor(f32, .{}, .{}, &.{ 2, 2 });
+    try std.testing.expectEqual(58.0, c.data[R.idx(.{ 0, 0 })]);
+    try std.testing.expectEqual(64.0, c.data[R.idx(.{ 0, 1 })]);
+    try std.testing.expectEqual(139.0, c.data[R.idx(.{ 1, 0 })]);
+    try std.testing.expectEqual(154.0, c.data[R.idx(.{ 1, 1 })]);
+}
+
+test "TensorStatic | RLS heap big tensor (near 1MB limit)" {
+    const allocator = std.testing.allocator;
+    // 31249 * 32bits = 999_968 bits — just under compile error
+    const BigVec = Tensor(f32, .{ .L = 1 }, .{}, &.{31249});
+
+    const a = try allocator.create(BigVec);
+    defer allocator.destroy(a);
+    a.* = BigVec.splat(1.0);
+
+    const b = try allocator.create(BigVec);
+    defer allocator.destroy(b);
+    b.* = BigVec.splat(2.0);
+
+    const c = try allocator.create(@TypeOf(a.add(b.*)));
+    defer allocator.destroy(c);
+    c.* = a.add(b.*); // RLS: ~125KB result direct into heap
+
+    try std.testing.expectEqual(3.0, c.data[0]);
+    try std.testing.expectEqual(3.0, c.data[31248]);
 }
